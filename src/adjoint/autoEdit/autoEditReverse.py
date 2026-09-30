@@ -39,6 +39,7 @@ useful_modules = [
     "initializeflow_b",
     "turbutils_b",
     "sa_b",
+    "sacorrections_b",
     "fluxes_b",
     "solverutils_b",
     "residuals_b",

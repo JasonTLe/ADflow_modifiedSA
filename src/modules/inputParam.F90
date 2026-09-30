@@ -533,6 +533,8 @@ module inputPhysics
     !                      when considering turbulence model effects
     ! useRotationSA:       Determines if we will use rotation correction (SA model only)
     ! useft2SA:            Determines if we will use the ft2 term (SA model only)
+    ! useCompressibilitySA: Determines if we will use the compressibility correction
+    !                      of Spalart (AIAA 2000-2306), SA and SA-Edwards models only
     ! wallFunctions:       Whether or not to use wall functions.
     ! wallDistanceNeeded:  Whether or not the wall distance is needed
     !                      for the turbulence model in a RANS problem.
@@ -579,14 +581,15 @@ module inputPhysics
     ! sepSenMaxRho           The rho parameter used with the KS-based separation sensor.
     ! sepSenMaxFamily     The maximum sepsensor value for a given surface family that does not use
     !                      KS-aggregation, but rather an exact max computation.
-    ! SAKappa, SAcb1, SAcb2, SAsigma, SAcv1, SAcw2, SAcw3, SAct1, SAct2, SAct3, SAct4, SAcrot
+    ! SAKappa, SAcb1, SAcb2, SAsigma, SAcv1, SAcw2, SAcw3, SAct1, SAct2, SAct3, SAct4, SAcrot, SAc5
+    !                      Spalart-Allmaras turbulence model constants
     !                      Spalart-Allmaras turbulence model constants
 
     integer(kind=intType) :: equations, equationMode, flowType
     integer(kind=intType) :: turbModel, cpModel, turbProd
     integer(kind=intType) :: rvfN
     logical :: rvfB
-    logical :: useQCR, useRotationSA, useft2SA
+    logical :: useQCR, useRotationSA, useft2SA, useCompressibilitySA
 
     logical :: wallFunctions, wallDistanceNeeded
 
@@ -610,7 +613,7 @@ module inputPhysics
     real(kind=realType) :: sepSenMaxRho
     real(kind=realType), dimension(:), allocatable :: sepSenMaxFamily
     real(kind=realType) :: SAKappa, SAcb1, SAcb2, SAsigma, SAcv1
-    real(kind=realType) :: SAcw2, SAcw3, SAct1, SAct2, SAct3, SAct4, SAcrot
+    real(kind=realType) :: SAcw2, SAcw3, SAct1, SAct2, SAct3, SAct4, SAcrot, SAc5
 
 #ifndef USE_TAPENADE
     real(kind=realType) :: alphad, betad

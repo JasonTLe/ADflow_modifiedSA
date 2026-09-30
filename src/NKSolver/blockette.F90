@@ -322,7 +322,7 @@ contains
             addGridVelocities
         use flowVarRefState, only: nwf, nw, viscous, nt1, nt2
         use iteration, only: currentLevel
-        use inputPhysics, only: equationMode, equations, turbModel
+        use inputPhysics, only: equationMode, equations, turbModel, useCompressibilitySA
         use inputDiscretization, only: spaceDiscr
         use utils, only: setPointers, EChk
         use turbUtils, only: computeEddyViscosity
@@ -619,8 +619,13 @@ contains
 
                         select case (turbModel)
 
-                        case (spalartAllmaras)
-                            call saSource
+                        case (spalartAllmaras, spalartAllmarasEdwards)
+                            if (turbModel == spalartAllmarasEdwards) then
+                                call saEdwardsSource
+                            else
+                                call saSource
+                            end if
+                            if (useCompressibilitySA) call saCompressibilitySource
                             call saAdvection
                             !call unsteadyTurbTerm(1_intType, 1_intType, itu1-1, qq)
                             call saViscous
@@ -765,9 +770,10 @@ contains
                           viscousFluxApprox_block => viscousFluxApprox
         use solverUtils, only: timeStep_block
         use flowVarRefState, only: nwf, nw, viscous, nt1, nt2
-        use inputPhysics, only: equationMode, equations, turbModel
+        use inputPhysics, only: equationMode, equations, turbModel, useCompressibilitySA
         use residuals, only: initres_block
         use sa, only: sa_block
+        use saCorrections, only: saCorr_block
         use adjointExtra, only: sumDwAndFw_block => sumDwAndFw
         use inputDiscretization, only: spaceDiscr
         use flowUtils, only: allNodalGradients_block => allNodalGradients, &
@@ -810,7 +816,13 @@ contains
             ! Now call the selected turbulence model
             select case (turbModel)
             case (spalartAllmaras)
-                call sa_block(.true.)
+                if (useCompressibilitySA) then
+                    call saCorr_block(.true.)
+                else
+                    call sa_block(.true.)
+                end if
+            case (spalartAllmarasEdwards)
+                call saCorr_block(.true.)
             end select
         end if
 
@@ -1166,6 +1178,194 @@ contains
             end do
         end do
     end subroutine saSource
+
+    subroutine saEdwardsSource
+        ! ---------------------------------------------
+        !        SA Source Term, Edwards modification
+        ! ---------------------------------------------
+        ! Blockette version of saEdwardsSource in
+        ! turbulence/saCorrections.F90; see there for the model
+        ! description and references.
+
+        use constants
+        use paramTurb
+        use inputDiscretization, only: approxSA
+
+        implicit none
+
+        ! Variables for sa Souce
+        real(kind=realType) :: cv13, kar2Inv, cw36, tanhOneInv
+        real(kind=realType) :: fv1, nuFv, sqrtProd, nu, dist2Inv, chi, chi3
+        real(kind=realType) :: xx, rr, gg, gg6, termFw, fwSa, prod, dest
+        real(kind=realType) :: uux, uuy, uuz, vvx, vvy, vvz, wwx, wwy, wwz
+        real(kind=realType) :: div2, fact, sxx, syy, szz, sxy, sxz, syz
+        real(kind=realType) :: strainMag2
+        real(kind=realType), parameter :: xminn = 1.e-10_realType
+        real(kind=realType), parameter :: f23 = two * third
+        integer(kind=intType) :: i, j, k
+        real(kind=realType) :: term1Fact
+
+        ! Set model constants
+        cv13 = rsaCv1**3
+        kar2Inv = one / (rsaK**2)
+        cw36 = rsaCw3**6
+        tanhOneInv = one / tanh(one)
+
+        ! set the approximate multiplier here
+        term1Fact = one
+        if (approxSA) term1Fact = zero
+
+        do k = 2, kl
+            do j = 2, jl
+                do i = 2, il
+
+                    ! Compute the velocity gradients in the cell center,
+                    ! scaled by the factor 2*vol.
+
+                    uux = w(i + 1, j, k, ivx) * si(i, j, k, 1) - w(i - 1, j, k, ivx) * si(i - 1, j, k, 1) &
+                          + w(i, j + 1, k, ivx) * sj(i, j, k, 1) - w(i, j - 1, k, ivx) * sj(i, j - 1, k, 1) &
+                          + w(i, j, k + 1, ivx) * sk(i, j, k, 1) - w(i, j, k - 1, ivx) * sk(i, j, k - 1, 1)
+                    uuy = w(i + 1, j, k, ivx) * si(i, j, k, 2) - w(i - 1, j, k, ivx) * si(i - 1, j, k, 2) &
+                          + w(i, j + 1, k, ivx) * sj(i, j, k, 2) - w(i, j - 1, k, ivx) * sj(i, j - 1, k, 2) &
+                          + w(i, j, k + 1, ivx) * sk(i, j, k, 2) - w(i, j, k - 1, ivx) * sk(i, j, k - 1, 2)
+                    uuz = w(i + 1, j, k, ivx) * si(i, j, k, 3) - w(i - 1, j, k, ivx) * si(i - 1, j, k, 3) &
+                          + w(i, j + 1, k, ivx) * sj(i, j, k, 3) - w(i, j - 1, k, ivx) * sj(i, j - 1, k, 3) &
+                          + w(i, j, k + 1, ivx) * sk(i, j, k, 3) - w(i, j, k - 1, ivx) * sk(i, j, k - 1, 3)
+
+                    vvx = w(i + 1, j, k, ivy) * si(i, j, k, 1) - w(i - 1, j, k, ivy) * si(i - 1, j, k, 1) &
+                          + w(i, j + 1, k, ivy) * sj(i, j, k, 1) - w(i, j - 1, k, ivy) * sj(i, j - 1, k, 1) &
+                          + w(i, j, k + 1, ivy) * sk(i, j, k, 1) - w(i, j, k - 1, ivy) * sk(i, j, k - 1, 1)
+                    vvy = w(i + 1, j, k, ivy) * si(i, j, k, 2) - w(i - 1, j, k, ivy) * si(i - 1, j, k, 2) &
+                          + w(i, j + 1, k, ivy) * sj(i, j, k, 2) - w(i, j - 1, k, ivy) * sj(i, j - 1, k, 2) &
+                          + w(i, j, k + 1, ivy) * sk(i, j, k, 2) - w(i, j, k - 1, ivy) * sk(i, j, k - 1, 2)
+                    vvz = w(i + 1, j, k, ivy) * si(i, j, k, 3) - w(i - 1, j, k, ivy) * si(i - 1, j, k, 3) &
+                          + w(i, j + 1, k, ivy) * sj(i, j, k, 3) - w(i, j - 1, k, ivy) * sj(i, j - 1, k, 3) &
+                          + w(i, j, k + 1, ivy) * sk(i, j, k, 3) - w(i, j, k - 1, ivy) * sk(i, j, k - 1, 3)
+
+                    wwx = w(i + 1, j, k, ivz) * si(i, j, k, 1) - w(i - 1, j, k, ivz) * si(i - 1, j, k, 1) &
+                          + w(i, j + 1, k, ivz) * sj(i, j, k, 1) - w(i, j - 1, k, ivz) * sj(i, j - 1, k, 1) &
+                          + w(i, j, k + 1, ivz) * sk(i, j, k, 1) - w(i, j, k - 1, ivz) * sk(i, j, k - 1, 1)
+                    wwy = w(i + 1, j, k, ivz) * si(i, j, k, 2) - w(i - 1, j, k, ivz) * si(i - 1, j, k, 2) &
+                          + w(i, j + 1, k, ivz) * sj(i, j, k, 2) - w(i, j - 1, k, ivz) * sj(i, j - 1, k, 2) &
+                          + w(i, j, k + 1, ivz) * sk(i, j, k, 2) - w(i, j, k - 1, ivz) * sk(i, j, k - 1, 2)
+                    wwz = w(i + 1, j, k, ivz) * si(i, j, k, 3) - w(i - 1, j, k, ivz) * si(i - 1, j, k, 3) &
+                          + w(i, j + 1, k, ivz) * sj(i, j, k, 3) - w(i, j - 1, k, ivz) * sj(i, j - 1, k, 3) &
+                          + w(i, j, k + 1, ivz) * sk(i, j, k, 3) - w(i, j, k - 1, ivz) * sk(i, j, k - 1, 3)
+
+                    fact = fourth / vol(i, j, k)
+
+                    sxx = two * fact * uux
+                    syy = two * fact * vvy
+                    szz = two * fact * wwz
+
+                    sxy = fact * (uuy + vvx)
+                    sxz = fact * (uuz + wwx)
+                    syz = fact * (vvz + wwy)
+
+                    div2 = f23 * (sxx + syy + szz)**2
+
+                    strainMag2 = two * (sxy**2 + sxz**2 + syz**2) &
+                                 + sxx**2 + syy**2 + szz**2
+
+                    ! sqrt(S), always the strain rate for this model
+                    sqrtProd = sqrt(max(two * strainMag2 - div2, xminn**2))
+
+                    nu = rlv(i, j, k) / w(i, j, k, irho)
+                    dist2Inv = one / (d2Wall(i, j, k)**2)
+                    chi = w(i, j, k, itu1) / nu
+                    chi3 = chi**3
+                    fv1 = chi3 / (chi3 + cv13)
+
+                    ! Stilde * nuTilde = sqrtProd * nuFv
+                    nuFv = nu + w(i, j, k, itu1) * fv1
+                    nuFv = max(nuFv, xminn * nu)
+
+                    xx = w(i, j, k, itu1)**2 * kar2Inv * dist2Inv / (sqrtProd * nuFv)
+                    rr = tanh(xx) * tanhOneInv
+                    gg = rr + rsaCw2 * (rr**6 - rr)
+                    gg6 = gg**6
+                    termFw = ((one + cw36) / (gg6 + cw36))**sixth
+                    fwSa = gg * termFw
+
+                    prod = rsaCb1 * sqrtProd * nuFv * term1Fact
+                    dest = rsaCw1 * fwSa * dist2Inv * w(i, j, k, itu1)**2
+
+                    dw(i, j, k, itu1) = dw(i, j, k, itu1) + prod - dest
+
+                end do
+            end do
+        end do
+    end subroutine saEdwardsSource
+
+    subroutine saCompressibilitySource
+        ! ---------------------------------------------
+        !     SA compressibility correction source term
+        ! ---------------------------------------------
+        ! Blockette version of saCompressibilitySource in
+        ! turbulence/saCorrections.F90; see there for the model
+        ! description and references.
+
+        use constants
+        use inputPhysics, only: SAc5
+
+        implicit none
+
+        real(kind=realType) :: uux, uuy, uuz, vvx, vvy, vvz, wwx, wwy, wwz
+        real(kind=realType) :: fact, gradU2, a2Inv
+        integer(kind=intType) :: i, j, k
+
+        do k = 2, kl
+            do j = 2, jl
+                do i = 2, il
+
+                    ! Compute the velocity gradients in the cell center,
+                    ! scaled by the factor 2*vol.
+
+                    uux = w(i + 1, j, k, ivx) * si(i, j, k, 1) - w(i - 1, j, k, ivx) * si(i - 1, j, k, 1) &
+                          + w(i, j + 1, k, ivx) * sj(i, j, k, 1) - w(i, j - 1, k, ivx) * sj(i, j - 1, k, 1) &
+                          + w(i, j, k + 1, ivx) * sk(i, j, k, 1) - w(i, j, k - 1, ivx) * sk(i, j, k - 1, 1)
+                    uuy = w(i + 1, j, k, ivx) * si(i, j, k, 2) - w(i - 1, j, k, ivx) * si(i - 1, j, k, 2) &
+                          + w(i, j + 1, k, ivx) * sj(i, j, k, 2) - w(i, j - 1, k, ivx) * sj(i, j - 1, k, 2) &
+                          + w(i, j, k + 1, ivx) * sk(i, j, k, 2) - w(i, j, k - 1, ivx) * sk(i, j, k - 1, 2)
+                    uuz = w(i + 1, j, k, ivx) * si(i, j, k, 3) - w(i - 1, j, k, ivx) * si(i - 1, j, k, 3) &
+                          + w(i, j + 1, k, ivx) * sj(i, j, k, 3) - w(i, j - 1, k, ivx) * sj(i, j - 1, k, 3) &
+                          + w(i, j, k + 1, ivx) * sk(i, j, k, 3) - w(i, j, k - 1, ivx) * sk(i, j, k - 1, 3)
+
+                    vvx = w(i + 1, j, k, ivy) * si(i, j, k, 1) - w(i - 1, j, k, ivy) * si(i - 1, j, k, 1) &
+                          + w(i, j + 1, k, ivy) * sj(i, j, k, 1) - w(i, j - 1, k, ivy) * sj(i, j - 1, k, 1) &
+                          + w(i, j, k + 1, ivy) * sk(i, j, k, 1) - w(i, j, k - 1, ivy) * sk(i, j, k - 1, 1)
+                    vvy = w(i + 1, j, k, ivy) * si(i, j, k, 2) - w(i - 1, j, k, ivy) * si(i - 1, j, k, 2) &
+                          + w(i, j + 1, k, ivy) * sj(i, j, k, 2) - w(i, j - 1, k, ivy) * sj(i, j - 1, k, 2) &
+                          + w(i, j, k + 1, ivy) * sk(i, j, k, 2) - w(i, j, k - 1, ivy) * sk(i, j, k - 1, 2)
+                    vvz = w(i + 1, j, k, ivy) * si(i, j, k, 3) - w(i - 1, j, k, ivy) * si(i - 1, j, k, 3) &
+                          + w(i, j + 1, k, ivy) * sj(i, j, k, 3) - w(i, j - 1, k, ivy) * sj(i, j - 1, k, 3) &
+                          + w(i, j, k + 1, ivy) * sk(i, j, k, 3) - w(i, j, k - 1, ivy) * sk(i, j, k - 1, 3)
+
+                    wwx = w(i + 1, j, k, ivz) * si(i, j, k, 1) - w(i - 1, j, k, ivz) * si(i - 1, j, k, 1) &
+                          + w(i, j + 1, k, ivz) * sj(i, j, k, 1) - w(i, j - 1, k, ivz) * sj(i, j - 1, k, 1) &
+                          + w(i, j, k + 1, ivz) * sk(i, j, k, 1) - w(i, j, k - 1, ivz) * sk(i, j, k - 1, 1)
+                    wwy = w(i + 1, j, k, ivz) * si(i, j, k, 2) - w(i - 1, j, k, ivz) * si(i - 1, j, k, 2) &
+                          + w(i, j + 1, k, ivz) * sj(i, j, k, 2) - w(i, j - 1, k, ivz) * sj(i, j - 1, k, 2) &
+                          + w(i, j, k + 1, ivz) * sk(i, j, k, 2) - w(i, j, k - 1, ivz) * sk(i, j, k - 1, 2)
+                    wwz = w(i + 1, j, k, ivz) * si(i, j, k, 3) - w(i - 1, j, k, ivz) * si(i - 1, j, k, 3) &
+                          + w(i, j + 1, k, ivz) * sj(i, j, k, 3) - w(i, j - 1, k, ivz) * sj(i, j - 1, k, 3) &
+                          + w(i, j, k + 1, ivz) * sk(i, j, k, 3) - w(i, j, k - 1, ivz) * sk(i, j, k - 1, 3)
+
+                    ! (du_i/dx_j)(du_i/dx_j)
+                    fact = half / vol(i, j, k)
+                    gradU2 = fact**2 * (uux**2 + uuy**2 + uuz**2 &
+                                        + vvx**2 + vvy**2 + vvz**2 &
+                                        + wwx**2 + wwy**2 + wwz**2)
+
+                    a2Inv = w(i, j, k, irho) / (gamma(i, j, k) * p(i, j, k))
+
+                    dw(i, j, k, itu1) = dw(i, j, k, itu1) &
+                                        - SAc5 * a2Inv * gradU2 * w(i, j, k, itu1)**2
+
+                end do
+            end do
+        end do
+    end subroutine saCompressibilitySource
 
     subroutine saViscous
         ! ---------------------------------------------

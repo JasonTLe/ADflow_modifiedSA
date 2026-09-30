@@ -62,6 +62,7 @@ ALL_RES_FILES =	$(SRC)/adjoint/adjointExtra.F90\
 		$(SRC)/turbulence/turbBCRoutines.F90\
 		$(SRC)/turbulence/turbMod.F90\
 		$(SRC)/turbulence/sa.F90\
+		$(SRC)/turbulence/saCorrections.F90\
 		$(SRC)/utils/flowUtils.F90\
 		$(SRC)/utils/utils.F90\
 		$(SRC)/utils/sorting.F90\
@@ -173,6 +174,12 @@ solverUtils%timeStep_block(w, pInfCorr, rhoInf, si, sj, sk, sFaceI, sFaceJ, sFac
 \
 sa%saSource(w, rlv, vol, si, sj, sk, timeRef, d2wall) > \
            (w, rlv, vol, si, sj, sk, timeREf, scratch) \
+\
+saCorrections%saEdwardsSource(w, rlv, vol, si, sj, sk, d2wall) > \
+                             (w, rlv, vol, si, sj, sk, scratch) \
+\
+saCorrections%saCompressibilitySource(w, p, vol, si, sj, sk, scratch) > \
+                                     (w, p, vol, si, sj, sk, scratch) \
 \
 turbutils%turbAdvection(w, vol, si, sj, sk, scratch, sfacei, sfacej, sfacek) > \
                        (w, vol, si, sj, sk, scratch, sfacei, sfacej, sfacek) \
@@ -295,6 +302,12 @@ flowutils%allNodalGradients(aa, w) > \
 \
 sa%saSource(w, rlv) > \
            (w, rlv, scratch) \
+\
+saCorrections%saEdwardsSource(w, rlv) > \
+                             (w, rlv, scratch) \
+\
+saCorrections%saCompressibilitySource(w, p, scratch) > \
+                                     (w, p, scratch) \
 \
 sa%saViscous(w, rlv, scratch) > \
             (w, rlv, scratch) \

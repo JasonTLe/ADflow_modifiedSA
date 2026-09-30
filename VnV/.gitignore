@@ -1,0 +1,6 @@
+# generated grids, solutions and logs (large); documents and figures in results/ are tracked
+grids/
+results/adflow/
+results/su2/
+logs/
+__pycache__/

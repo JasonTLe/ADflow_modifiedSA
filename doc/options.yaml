@@ -188,7 +188,10 @@ turbulenceModel:
     Spalart-Allmaras.
     This is the recommended option for external aerodynamic flow applications because it is the only turbulence model that has been differentiated.
     This is also the only turbulence model that is tested.
-  SA-Edwards: Spalart-Allmaras with Edwards Modification
+  SA-Edwards: >
+    Spalart-Allmaras with the Edwards-Chandra modification (SA-noft2-Edwards, AIAA 94-2275 / AIAA J. 34(4), 1996).
+    ft2 is ignored, Stilde = sqrt(S)(1/chi + fv1) where S is the strain rate, and r = tanh(nuTilde/(Stilde kappa^2 d^2))/tanh(1).
+    The ``turbulenceProduction``, ``useft2SA`` and ``useRotationSA`` options have no effect for this model.
   k-omega Wilcox: Wilcox k-omega
   k-omega modified: Wilcox modified k-omega
   k-tau: k-tau
@@ -210,7 +213,7 @@ turbResScale:
     Refer to the list below for the defaults and the type of input expected:
 
       * ``SA`` - Type: float scalar - Default: 10e4
-      * ``SA-Edwards`` - NOT IMPLEMENTED
+      * ``SA-Edwards`` - Type: float scalar - Default: 10e4
       * ``k-omega Wilcox`` - NOT IMPLEMENTED
       * ``k-omega modified`` - NOT IMPLEMENTED
       * ``k-tau`` - NOT IMPLEMENTED
@@ -236,6 +239,12 @@ useRotationSA:
 useft2SA:
   desc: >
     Include the ft2 term in the Spalart-Allmaras turbulence model.
+
+useCompressibilitySA:
+  desc: >
+    Use the mixing-layer compressibility correction of Spalart (AIAA 2000-2306, SA-comp) with the ``SA`` or ``SA-Edwards`` turbulence models.
+    The term -C5 nuTilde^2/a^2 (du_i/dx_j)(du_i/dx_j) is added to the right hand side of the SA equation, where a is the speed of sound and C5 is given by ``SAc5``.
+    Note that this correction targets compressible mixing layers; Xue et al. (AIAA J. 62(1), 2024) found that it degrades hypersonic boundary layer predictions.
 
 eddyVisInfRatio:
   desc: >
@@ -407,6 +416,9 @@ SAct4:
 
 SAcrot:
   desc: SA model constant crot, scaling factor for the rotation correction term.
+
+SAc5:
+  desc: SA model constant C5, scaling factor for the compressibility correction term (see ``useCompressibilitySA``).
 
 nCycles:
   desc: >

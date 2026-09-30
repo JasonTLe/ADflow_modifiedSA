@@ -1173,6 +1173,7 @@ python module libadflow
          logical :: useqcr
          logical :: userotationsa
          logical :: useft2sa
+         logical :: usecompressibilitysa
          logical :: wallfunctions
          real(kind=realtype) :: mach
          real(kind=realtype) :: machcoef
@@ -1218,6 +1219,7 @@ python module libadflow
          real(kind=realtype) :: sact3
          real(kind=realtype) :: sact4
          real(kind=realtype) :: sacrot
+         real(kind=realtype) :: sac5
        end module inputphysics
 
        module inputadjoint ! in :adflow:../modules/inputParam.f90

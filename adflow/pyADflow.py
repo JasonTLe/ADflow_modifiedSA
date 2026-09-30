@@ -5678,6 +5678,7 @@ class ADFLOW(AeroSolver):
             "useQCR": [bool, False],
             "useRotationSA": [bool, False],
             "useft2SA": [bool, True],
+            "useCompressibilitySA": [bool, False],
             "eddyVisInfRatio": [float, 0.009],
             "useWallFunctions": [bool, False],
             "useApproxWallDistance": [bool, True],
@@ -5718,6 +5719,7 @@ class ADFLOW(AeroSolver):
             "SAct3": [float, 1.2],
             "SAct4": [float, 0.5],
             "SAcrot": [float, 2.0],
+            "SAc5": [float, 3.5],
             # Common Parameters
             "nCycles": [int, 2000],
             "timeLimit": [float, -1.0],
@@ -6091,6 +6093,7 @@ class ADFLOW(AeroSolver):
             "useqcr": ["physics", "useqcr"],
             "userotationsa": ["physics", "userotationsa"],
             "useft2sa": ["physics", "useft2sa"],
+            "usecompressibilitysa": ["physics", "usecompressibilitysa"],
             "eddyvisinfratio": ["physics", "eddyvisinfratio"],
             "usewallfunctions": ["physics", "wallfunctions"],
             "walldistcutoff": ["physics", "walldistcutoff"],
@@ -6130,6 +6133,7 @@ class ADFLOW(AeroSolver):
             "sact3": ["physics", "sact3"],
             "sact4": ["physics", "sact4"],
             "sacrot": ["physics", "sacrot"],
+            "sac5": ["physics", "sac5"],
             # Common Parameters
             "ncycles": ["iter", "ncycles"],
             "timelimit": ["iter", "timelimit"],
@@ -6578,7 +6582,7 @@ class ADFLOW(AeroSolver):
 
         if self.getOption("turbresscale") is None:
             turbModel = self.getOption("turbulencemodel")
-            if turbModel == "SA":
+            if turbModel in ["SA", "SA-Edwards"]:
                 self.setOption("turbresscale", 10000.0)
             elif turbModel == "Menter SST":
                 self.setOption("turbresscale", [1e3, 1e-6])

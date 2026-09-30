@@ -45,6 +45,7 @@ useful_modules = [
     "initializeflow_fast_b",
     "residuals_fast_b",
     "sa_fast_b",
+    "sacorrections_fast_b",
     "solverutils_fast_b",
     "surfaceintegrations_fast_b",
     "turbbcroutines_fast_b",

@@ -2124,7 +2124,7 @@ contains
             ! cell since the value isn't defined in the rind cell
 
             if (present(jBeg) .and. present(jEnd) .and. (useRindLayer)) then
-                jor = j + jBegOr - 1
+                jor = j + subface_jBegOr - 1
                 if (jor == jBeg) then
                     jj = j + 1
                 else if (jor == jEnd + 1) then
@@ -2139,7 +2139,7 @@ contains
 
             do i = rangeFace(1, 1), rangeFace(1, 2)
                 if (present(iBeg) .and. present(iEnd) .and. (useRindLayer)) then
-                    ior = i + iBegor - 1
+                    ior = i + subface_iBegOr - 1
                     if (ior == iBeg) then
                         ii = i + 1
                     else if (ior == iEnd + 1) then

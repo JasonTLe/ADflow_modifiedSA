@@ -17,6 +17,7 @@ contains
         use turbMod
         use inputTimeSpectral, only: nTimeIntervalsSpectral
         use sa
+        use saCorrections, only: saCorr_block
         use kw
         use kt
         use SST
@@ -43,7 +44,7 @@ contains
 
             ! Compute the time derivative for the time spectral mode.
             select case (turbModel)
-            case (spalartAllmaras)
+            case (spalartAllmaras, spalartAllmarasEdwards)
                 call unsteadyTurbSpectral(itu1, itu1)
             case (komegaWilcox, komegaModified, menterSST, ktau)
                 call unsteadyTurbSpectral(itu1, itu2)
@@ -66,7 +67,14 @@ contains
                     select case (turbModel)
 
                     case (spalartAllmaras)
-                        call sa_block(.false.)
+                        if (useCompressibilitySA) then
+                            call saCorr_block(.false.)
+                        else
+                            call sa_block(.false.)
+                        end if
+
+                    case (spalartAllmarasEdwards)
+                        call saCorr_block(.false.)
 
                     case (komegaWilcox, komegaModified)
                         call kw_block(.false.)
@@ -107,6 +115,7 @@ contains
         use iteration
         use turbMod
         use sa
+        use saCorrections, only: saCorr_block
         use kt
         use kw
         use SST
@@ -138,7 +147,14 @@ contains
                 select case (turbModel)
 
                 case (spalartAllmaras)
-                    call sa_block(.True.)
+                    if (useCompressibilitySA) then
+                        call saCorr_block(.True.)
+                    else
+                        call sa_block(.True.)
+                    end if
+
+                case (spalartAllmarasEdwards)
+                    call saCorr_block(.True.)
 
                 case (komegaWilcox, komegaModified)
                     call kw_block(.True.)
