@@ -33,6 +33,12 @@ python module libadflow
          integer(kind=inttype) parameter,optional :: strain=1_inttype
          integer(kind=inttype) parameter,optional :: vorticity=2_inttype
          integer(kind=inttype) parameter,optional :: katolaunder=3_inttype
+         integer(kind=inttype) parameter,optional :: sadensitynone=0_inttype
+         integer(kind=inttype) parameter,optional :: sadensitycatrisaupoix=1_inttype
+         integer(kind=inttype) parameter,optional :: sadensitycatris1999=2_inttype
+         integer(kind=inttype) parameter,optional :: sadensityseror=3_inttype
+         integer(kind=inttype) parameter,optional :: sadensityconservative=4_inttype
+         integer(kind=inttype) parameter,optional :: sadensitycatrisaupoixcons=5_inttype
          integer(kind=inttype) parameter,optional :: dissscalar=1_inttype
          integer(kind=inttype) parameter,optional :: dissmatrix=2_inttype
          integer(kind=inttype) parameter,optional :: disscusp=3_inttype
@@ -1174,6 +1180,7 @@ python module libadflow
          logical :: userotationsa
          logical :: useft2sa
          logical :: usecompressibilitysa
+         integer(kind=inttype) :: densitycorrsa
          logical :: wallfunctions
          real(kind=realtype) :: mach
          real(kind=realtype) :: machcoef

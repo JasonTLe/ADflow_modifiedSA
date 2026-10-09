@@ -322,7 +322,7 @@ contains
             addGridVelocities
         use flowVarRefState, only: nwf, nw, viscous, nt1, nt2
         use iteration, only: currentLevel
-        use inputPhysics, only: equationMode, equations, turbModel, useCompressibilitySA
+        use inputPhysics, only: equationMode, equations, turbModel, useCompressibilitySA, densityCorrSA
         use inputDiscretization, only: spaceDiscr
         use utils, only: setPointers, EChk
         use turbUtils, only: computeEddyViscosity
@@ -626,9 +626,17 @@ contains
                                 call saSource
                             end if
                             if (useCompressibilitySA) call saCompressibilitySource
+                            if (densityCorrSA /= saDensityNone .and. &
+                                densityCorrSA /= saDensityCatrisAupoixCons) then
+                                call saDensityCorrectionSource
+                            end if
                             call saAdvection
                             !call unsteadyTurbTerm(1_intType, 1_intType, itu1-1, qq)
-                            call saViscous
+                            if (densityCorrSA == saDensityCatrisAupoix .or. densityCorrSA == saDensityCatrisAupoixCons) then
+                                call saCatrisViscous
+                            else
+                                call saViscous
+                            end if
                             call saResScale
                         end select
                     end if
@@ -770,7 +778,7 @@ contains
                           viscousFluxApprox_block => viscousFluxApprox
         use solverUtils, only: timeStep_block
         use flowVarRefState, only: nwf, nw, viscous, nt1, nt2
-        use inputPhysics, only: equationMode, equations, turbModel, useCompressibilitySA
+        use inputPhysics, only: equationMode, equations, turbModel, useCompressibilitySA, densityCorrSA
         use residuals, only: initres_block
         use sa, only: sa_block
         use saCorrections, only: saCorr_block
@@ -816,7 +824,7 @@ contains
             ! Now call the selected turbulence model
             select case (turbModel)
             case (spalartAllmaras)
-                if (useCompressibilitySA) then
+                if (useCompressibilitySA .or. densityCorrSA /= saDensityNone) then
                     call saCorr_block(.true.)
                 else
                     call sa_block(.true.)
@@ -1366,6 +1374,330 @@ contains
             end do
         end do
     end subroutine saCompressibilitySource
+
+    subroutine saCatrisViscous
+        ! ---------------------------------------------
+        !     SA Viscous Term, Catris-Aupoix correction
+        ! ---------------------------------------------
+        ! Blockette version of saCatrisViscous in
+        ! turbulence/saCorrections.F90; see there for the model
+        ! description and references.
+
+        use constants
+        use paramTurb
+        implicit none
+
+        real(kind=realType) :: cb3Inv, rhoInv
+        real(kind=realType) :: voli, volmi, volpi, xm, ym, zm, xp, yp, zp
+        real(kind=realType) :: xa, ya, za, ttm, ttp
+        real(kind=realType) :: sqr0, sqrm, sqrp, phi0, phim, phip
+        real(kind=realType) :: clm, clp, ctm, ctp
+        real(kind=realType) :: c1m, c1p, c10
+        integer(kind=intType) :: i, j, k
+
+        cb3Inv = one / rsaCb3
+
+        !
+        !       Viscous terms in k-direction.
+        !
+        do k = 2, kl
+            do j = 2, jl
+                do i = 2, il
+                    ! Compute the metrics in zeta-direction, i.e. along the
+                    ! line k = constant.
+
+                    voli = one / vol(i, j, k)
+                    volmi = two / (vol(i, j, k) + vol(i, j, k - 1))
+                    volpi = two / (vol(i, j, k) + vol(i, j, k + 1))
+
+                    xm = sk(i, j, k - 1, 1) * volmi
+                    ym = sk(i, j, k - 1, 2) * volmi
+                    zm = sk(i, j, k - 1, 3) * volmi
+                    xp = sk(i, j, k, 1) * volpi
+                    yp = sk(i, j, k, 2) * volpi
+                    zp = sk(i, j, k, 3) * volpi
+
+                    xa = half * (sk(i, j, k, 1) + sk(i, j, k - 1, 1)) * voli
+                    ya = half * (sk(i, j, k, 2) + sk(i, j, k - 1, 2)) * voli
+                    za = half * (sk(i, j, k, 3) + sk(i, j, k - 1, 3)) * voli
+                    ttm = xm * xa + ym * ya + zm * za
+                    ttp = xp * xa + yp * ya + zp * za
+
+                    ! phi = sqrt(rho) nuTilde in the cell and at the faces.
+
+                    sqr0 = sqrt(w(i, j, k, irho))
+                    sqrm = sqrt(w(i, j, k - 1, irho))
+                    sqrp = sqrt(w(i, j, k + 1, irho))
+                    phi0 = sqr0 * w(i, j, k, itu1)
+                    phim = half * (sqrm * w(i, j, k - 1, itu1) + phi0)
+                    phip = half * (sqrp * w(i, j, k + 1, itu1) + phi0)
+
+                    ! Laminar diffusion coefficients, mu/sigma at the faces.
+
+                    clm = half * (rlv(i, j, k - 1) + rlv(i, j, k)) * ttm * cb3Inv
+                    clp = half * (rlv(i, j, k + 1) + rlv(i, j, k)) * ttp * cb3Inv
+
+                    ! Turbulent diffusion coefficients multiplying the
+                    ! differences of phi, ((1+cb2) phi_face - cb2 phi)/sigma,
+                    ! see saViscous. As there, the total coefficients of the
+                    ! neighbouring values (laminar + turbulent) are kept
+                    ! nonnegative, which is needed at walls where the halo
+                    ! value of nuTilde is negative.
+
+                    ctm = max(((one + rsaCb2) * phim - rsaCb2 * phi0) * ttm * cb3Inv, -clm / sqrm)
+                    ctp = max(((one + rsaCb2) * phip - rsaCb2 * phi0) * ttp * cb3Inv, -clp / sqrp)
+
+                    ! Coefficients of nuTilde in the neighbours and the cell
+                    ! itself; the whole term is divided by rho.
+
+                    rhoInv = one / w(i, j, k, irho)
+                    c1m = (clm + ctm * sqrm) * rhoInv
+                    c1p = (clp + ctp * sqrp) * rhoInv
+                    c10 = (clm + clp + (ctm + ctp) * sqr0) * rhoInv
+
+                    dw(i, j, k, itu1) = dw(i, j, k, itu1) + c1m * w(i, j, k - 1, itu1) &
+                                             - c10 * w(i, j, k, itu1) + c1p * w(i, j, k + 1, itu1)
+                end do
+            end do
+        end do
+        !
+        !       Viscous terms in j-direction.
+        !
+        do k = 2, kl
+            do j = 2, jl
+                do i = 2, il
+                    ! Compute the metrics in eta-direction, i.e. along the
+                    ! line j = constant.
+
+                    voli = one / vol(i, j, k)
+                    volmi = two / (vol(i, j, k) + vol(i, j - 1, k))
+                    volpi = two / (vol(i, j, k) + vol(i, j + 1, k))
+
+                    xm = sj(i, j - 1, k, 1) * volmi
+                    ym = sj(i, j - 1, k, 2) * volmi
+                    zm = sj(i, j - 1, k, 3) * volmi
+                    xp = sj(i, j, k, 1) * volpi
+                    yp = sj(i, j, k, 2) * volpi
+                    zp = sj(i, j, k, 3) * volpi
+
+                    xa = half * (sj(i, j, k, 1) + sj(i, j - 1, k, 1)) * voli
+                    ya = half * (sj(i, j, k, 2) + sj(i, j - 1, k, 2)) * voli
+                    za = half * (sj(i, j, k, 3) + sj(i, j - 1, k, 3)) * voli
+                    ttm = xm * xa + ym * ya + zm * za
+                    ttp = xp * xa + yp * ya + zp * za
+
+                    ! phi = sqrt(rho) nuTilde in the cell and at the faces.
+
+                    sqr0 = sqrt(w(i, j, k, irho))
+                    sqrm = sqrt(w(i, j - 1, k, irho))
+                    sqrp = sqrt(w(i, j + 1, k, irho))
+                    phi0 = sqr0 * w(i, j, k, itu1)
+                    phim = half * (sqrm * w(i, j - 1, k, itu1) + phi0)
+                    phip = half * (sqrp * w(i, j + 1, k, itu1) + phi0)
+
+                    ! Laminar diffusion coefficients, mu/sigma at the faces.
+
+                    clm = half * (rlv(i, j - 1, k) + rlv(i, j, k)) * ttm * cb3Inv
+                    clp = half * (rlv(i, j + 1, k) + rlv(i, j, k)) * ttp * cb3Inv
+
+                    ! Turbulent diffusion coefficients multiplying the
+                    ! differences of phi, ((1+cb2) phi_face - cb2 phi)/sigma,
+                    ! see saViscous. As there, the total coefficients of the
+                    ! neighbouring values (laminar + turbulent) are kept
+                    ! nonnegative, which is needed at walls where the halo
+                    ! value of nuTilde is negative.
+
+                    ctm = max(((one + rsaCb2) * phim - rsaCb2 * phi0) * ttm * cb3Inv, -clm / sqrm)
+                    ctp = max(((one + rsaCb2) * phip - rsaCb2 * phi0) * ttp * cb3Inv, -clp / sqrp)
+
+                    ! Coefficients of nuTilde in the neighbours and the cell
+                    ! itself; the whole term is divided by rho.
+
+                    rhoInv = one / w(i, j, k, irho)
+                    c1m = (clm + ctm * sqrm) * rhoInv
+                    c1p = (clp + ctp * sqrp) * rhoInv
+                    c10 = (clm + clp + (ctm + ctp) * sqr0) * rhoInv
+
+                    dw(i, j, k, itu1) = dw(i, j, k, itu1) + c1m * w(i, j - 1, k, itu1) &
+                                             - c10 * w(i, j, k, itu1) + c1p * w(i, j + 1, k, itu1)
+                end do
+            end do
+        end do
+        !
+        !       Viscous terms in i-direction.
+        !
+        do k = 2, kl
+            do j = 2, jl
+                do i = 2, il
+                    ! Compute the metrics in xi-direction, i.e. along the
+                    ! line i = constant.
+
+                    voli = one / vol(i, j, k)
+                    volmi = two / (vol(i, j, k) + vol(i - 1, j, k))
+                    volpi = two / (vol(i, j, k) + vol(i + 1, j, k))
+
+                    xm = si(i - 1, j, k, 1) * volmi
+                    ym = si(i - 1, j, k, 2) * volmi
+                    zm = si(i - 1, j, k, 3) * volmi
+                    xp = si(i, j, k, 1) * volpi
+                    yp = si(i, j, k, 2) * volpi
+                    zp = si(i, j, k, 3) * volpi
+
+                    xa = half * (si(i, j, k, 1) + si(i - 1, j, k, 1)) * voli
+                    ya = half * (si(i, j, k, 2) + si(i - 1, j, k, 2)) * voli
+                    za = half * (si(i, j, k, 3) + si(i - 1, j, k, 3)) * voli
+                    ttm = xm * xa + ym * ya + zm * za
+                    ttp = xp * xa + yp * ya + zp * za
+
+                    ! phi = sqrt(rho) nuTilde in the cell and at the faces.
+
+                    sqr0 = sqrt(w(i, j, k, irho))
+                    sqrm = sqrt(w(i - 1, j, k, irho))
+                    sqrp = sqrt(w(i + 1, j, k, irho))
+                    phi0 = sqr0 * w(i, j, k, itu1)
+                    phim = half * (sqrm * w(i - 1, j, k, itu1) + phi0)
+                    phip = half * (sqrp * w(i + 1, j, k, itu1) + phi0)
+
+                    ! Laminar diffusion coefficients, mu/sigma at the faces.
+
+                    clm = half * (rlv(i - 1, j, k) + rlv(i, j, k)) * ttm * cb3Inv
+                    clp = half * (rlv(i + 1, j, k) + rlv(i, j, k)) * ttp * cb3Inv
+
+                    ! Turbulent diffusion coefficients multiplying the
+                    ! differences of phi, ((1+cb2) phi_face - cb2 phi)/sigma,
+                    ! see saViscous. As there, the total coefficients of the
+                    ! neighbouring values (laminar + turbulent) are kept
+                    ! nonnegative, which is needed at walls where the halo
+                    ! value of nuTilde is negative.
+
+                    ctm = max(((one + rsaCb2) * phim - rsaCb2 * phi0) * ttm * cb3Inv, -clm / sqrm)
+                    ctp = max(((one + rsaCb2) * phip - rsaCb2 * phi0) * ttp * cb3Inv, -clp / sqrp)
+
+                    ! Coefficients of nuTilde in the neighbours and the cell
+                    ! itself; the whole term is divided by rho.
+
+                    rhoInv = one / w(i, j, k, irho)
+                    c1m = (clm + ctm * sqrm) * rhoInv
+                    c1p = (clp + ctp * sqrp) * rhoInv
+                    c10 = (clm + clp + (ctm + ctp) * sqr0) * rhoInv
+
+                    dw(i, j, k, itu1) = dw(i, j, k, itu1) + c1m * w(i - 1, j, k, itu1) &
+                                             - c10 * w(i, j, k, itu1) + c1p * w(i + 1, j, k, itu1)
+                end do
+            end do
+        end do
+    end subroutine saCatrisViscous
+
+    subroutine saDensityCorrectionSource
+        ! ---------------------------------------------
+        !     SA density-gradient diffusion source terms
+        ! ---------------------------------------------
+        ! Blockette version of saDensityCorrectionSource in
+        ! turbulence/saCorrections.F90; see there for the model
+        ! description and references.
+
+        use constants
+        use paramTurb
+        use inputPhysics, only: densityCorrSA
+        implicit none
+
+        real(kind=realType) :: fact, rhox, rhoy, rhoz, nux, nuy, nuz, mux, muy, muz
+        real(kind=realType) :: gradRhoNu, nu, coef, src, cb3Inv, divU
+        integer(kind=intType) :: i, j, k
+
+        cb3Inv = one / rsaCb3
+
+        do k = 2, kl
+            do j = 2, jl
+                do i = 2, il
+                    fact = half / vol(i, j, k)
+
+                    if (densityCorrSA == saDensityCatrisAupoix) then
+
+                        ! Original (non-conservative) form of the
+                        ! Catris-Aupoix model, D(rho nuTilde)/Dt on the left
+                        ! hand side: divided by rho this adds nuTilde div(u)
+                        ! to the equation for nuTilde solved here.
+
+                        divU = fact * (w(i + 1, j, k, ivx) * si(i, j, k, 1) - w(i - 1, j, k, ivx) * si(i - 1, j, k, 1) &
+                                       + w(i, j + 1, k, ivx) * sj(i, j, k, 1) - w(i, j - 1, k, ivx) * sj(i, j - 1, k, 1) &
+                                       + w(i, j, k + 1, ivx) * sk(i, j, k, 1) - w(i, j, k - 1, ivx) * sk(i, j, k - 1, 1) &
+                                       + w(i + 1, j, k, ivy) * si(i, j, k, 2) - w(i - 1, j, k, ivy) * si(i - 1, j, k, 2) &
+                                       + w(i, j + 1, k, ivy) * sj(i, j, k, 2) - w(i, j - 1, k, ivy) * sj(i, j - 1, k, 2) &
+                                       + w(i, j, k + 1, ivy) * sk(i, j, k, 2) - w(i, j, k - 1, ivy) * sk(i, j, k - 1, 2) &
+                                       + w(i + 1, j, k, ivz) * si(i, j, k, 3) - w(i - 1, j, k, ivz) * si(i - 1, j, k, 3) &
+                                       + w(i, j + 1, k, ivz) * sj(i, j, k, 3) - w(i, j - 1, k, ivz) * sj(i, j - 1, k, 3) &
+                                       + w(i, j, k + 1, ivz) * sk(i, j, k, 3) - w(i, j, k - 1, ivz) * sk(i, j, k - 1, 3))
+
+                        src = w(i, j, k, itu1) * divU
+
+                    else
+
+                        ! Cell-centred gradients of rho, nuTilde and mu
+                        ! (Green-Gauss with the neighbouring cell values,
+                        ! see saSource).
+
+                        rhox = fact * (w(i + 1, j, k, irho) * si(i, j, k, 1) - w(i - 1, j, k, irho) * si(i - 1, j, k, 1) &
+                                       + w(i, j + 1, k, irho) * sj(i, j, k, 1) - w(i, j - 1, k, irho) * sj(i, j - 1, k, 1) &
+                                       + w(i, j, k + 1, irho) * sk(i, j, k, 1) - w(i, j, k - 1, irho) * sk(i, j, k - 1, 1))
+                        rhoy = fact * (w(i + 1, j, k, irho) * si(i, j, k, 2) - w(i - 1, j, k, irho) * si(i - 1, j, k, 2) &
+                                       + w(i, j + 1, k, irho) * sj(i, j, k, 2) - w(i, j - 1, k, irho) * sj(i, j - 1, k, 2) &
+                                       + w(i, j, k + 1, irho) * sk(i, j, k, 2) - w(i, j, k - 1, irho) * sk(i, j, k - 1, 2))
+                        rhoz = fact * (w(i + 1, j, k, irho) * si(i, j, k, 3) - w(i - 1, j, k, irho) * si(i - 1, j, k, 3) &
+                                       + w(i, j + 1, k, irho) * sj(i, j, k, 3) - w(i, j - 1, k, irho) * sj(i, j - 1, k, 3) &
+                                       + w(i, j, k + 1, irho) * sk(i, j, k, 3) - w(i, j, k - 1, irho) * sk(i, j, k - 1, 3))
+
+                        nux = fact * (w(i + 1, j, k, itu1) * si(i, j, k, 1) - w(i - 1, j, k, itu1) * si(i - 1, j, k, 1) &
+                                      + w(i, j + 1, k, itu1) * sj(i, j, k, 1) - w(i, j - 1, k, itu1) * sj(i, j - 1, k, 1) &
+                                      + w(i, j, k + 1, itu1) * sk(i, j, k, 1) - w(i, j, k - 1, itu1) * sk(i, j, k - 1, 1))
+                        nuy = fact * (w(i + 1, j, k, itu1) * si(i, j, k, 2) - w(i - 1, j, k, itu1) * si(i - 1, j, k, 2) &
+                                      + w(i, j + 1, k, itu1) * sj(i, j, k, 2) - w(i, j - 1, k, itu1) * sj(i, j - 1, k, 2) &
+                                      + w(i, j, k + 1, itu1) * sk(i, j, k, 2) - w(i, j, k - 1, itu1) * sk(i, j, k - 1, 2))
+                        nuz = fact * (w(i + 1, j, k, itu1) * si(i, j, k, 3) - w(i - 1, j, k, itu1) * si(i - 1, j, k, 3) &
+                                      + w(i, j + 1, k, itu1) * sj(i, j, k, 3) - w(i, j - 1, k, itu1) * sj(i, j - 1, k, 3) &
+                                      + w(i, j, k + 1, itu1) * sk(i, j, k, 3) - w(i, j, k - 1, itu1) * sk(i, j, k - 1, 3))
+
+                        gradRhoNu = rhox * nux + rhoy * nuy + rhoz * nuz
+
+                        ! (nu + nuTilde) grad(rho).grad(nuTilde): conservative form
+
+                        nu = rlv(i, j, k) / w(i, j, k, irho)
+                        coef = nu + w(i, j, k, itu1)
+
+                        ! + cb2 nuTilde grad(rho).grad(nuTilde): Catris (1999)
+
+                        if (densityCorrSA == saDensityCatris1999 .or. densityCorrSA == saDensitySeror) then
+                            coef = coef + rsaCb2 * w(i, j, k, itu1)
+                        end if
+
+                        src = coef * gradRhoNu
+
+                        ! + cb2 grad(mu).grad(nuTilde): Seror et al. (2005)
+
+                        if (densityCorrSA == saDensitySeror) then
+                            mux = fact * (rlv(i + 1, j, k) * si(i, j, k, 1) - rlv(i - 1, j, k) * si(i - 1, j, k, 1) &
+                                          + rlv(i, j + 1, k) * sj(i, j, k, 1) - rlv(i, j - 1, k) * sj(i, j - 1, k, 1) &
+                                          + rlv(i, j, k + 1) * sk(i, j, k, 1) - rlv(i, j, k - 1) * sk(i, j, k - 1, 1))
+                            muy = fact * (rlv(i + 1, j, k) * si(i, j, k, 2) - rlv(i - 1, j, k) * si(i - 1, j, k, 2) &
+                                          + rlv(i, j + 1, k) * sj(i, j, k, 2) - rlv(i, j - 1, k) * sj(i, j - 1, k, 2) &
+                                          + rlv(i, j, k + 1) * sk(i, j, k, 2) - rlv(i, j, k - 1) * sk(i, j, k - 1, 2))
+                            muz = fact * (rlv(i + 1, j, k) * si(i, j, k, 3) - rlv(i - 1, j, k) * si(i - 1, j, k, 3) &
+                                          + rlv(i, j + 1, k) * sj(i, j, k, 3) - rlv(i, j - 1, k) * sj(i, j - 1, k, 3) &
+                                          + rlv(i, j, k + 1) * sk(i, j, k, 3) - rlv(i, j, k - 1) * sk(i, j, k - 1, 3))
+                            src = src + rsaCb2 * (mux * nux + muy * nuy + muz * nuz)
+                        end if
+
+                        ! The terms are divided by sigma and rho.
+
+                        src = cb3Inv * src / w(i, j, k, irho)
+
+                    end if
+
+                    dw(i, j, k, itu1) = dw(i, j, k, itu1) + src
+                end do
+            end do
+        end do
+    end subroutine saDensityCorrectionSource
 
     subroutine saViscous
         ! ---------------------------------------------

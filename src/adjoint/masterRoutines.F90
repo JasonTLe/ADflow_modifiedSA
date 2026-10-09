@@ -13,14 +13,14 @@ contains
         use flowVarRefState, only: nwf, nw
         use blockPointers, only: nDom, il, jl, kl
         use flowVarRefState, only: viscous
-        use inputPhysics, only: turbProd, equationMode, equations, turbModel, useCompressibilitySA
+        use inputPhysics, only: turbProd, equationMode, equations, turbModel, useCompressibilitySA, densityCorrSA
         use inputDiscretization, only: lowSpeedPreconditioner, lumpedDiss, spaceDiscr, useAPproxWallDistance
         use inputTimeSpectral, only: nTimeIntervalsSpectral
         use initializeFlow, only: referenceState
         use section, only: sections, nSections
         use monitor, only: timeUnsteadyRestart
         use sa, only: saSource, saViscous, saResScale, qq
-        use saCorrections, only: saEdwardsSource, saCompressibilitySource
+        use saCorrections, only: saEdwardsSource, saCompressibilitySource, saCatrisViscous, saDensityCorrectionSource
         use haloExchange, only: exchangeCoor, whalo2
         use wallDistance, only: updateWallDistancesQuickly
         use solverUtils, only: timeStep_block
@@ -201,9 +201,17 @@ contains
                             call saSource
                         end if
                         if (useCompressibilitySA) call saCompressibilitySource
+                        if (densityCorrSA /= saDensityNone .and. &
+                            densityCorrSA /= saDensityCatrisAupoixCons) then
+                            call saDensityCorrectionSource
+                        end if
                         call turbAdvection(1_intType, 1_intType, itu1 - 1, qq)
                         !call unsteadyTurbTerm(1_intType, 1_intType, itu1-1, qq)
-                        call saViscous
+                        if (densityCorrSA == saDensityCatrisAupoix .or. densityCorrSA == saDensityCatrisAupoixCons) then
+                            call saCatrisViscous
+                        else
+                            call saViscous
+                        end if
                         call saResScale
                         deallocate (qq)
                     end select
@@ -276,14 +284,15 @@ contains
         use blockPointers, only: nDom, il, jl, kl, wd, xd, dw, dwd, nBocos, nViscBocos
         use flowVarRefState, only: viscous, timerefd
         use inputPhysics, only: turbProd, equationMode, equations, turbModel, wallDistanceNeeded, &
-                                useCompressibilitySA
+                                useCompressibilitySA, densityCorrSA
         use inputDiscretization, only: lowSpeedPreconditioner, lumpedDiss, spaceDiscr, useAPproxWallDistance
         use inputTimeSpectral, only: nTimeIntervalsSpectral
         use section, only: sections, nSections
         use monitor, only: timeUnsteadyRestart
         use utils, only: isWallType, setPointers, setPointers_d, EChk
         use sa_d, only: saSource_d, saViscous_d, saResScale_d, qq
-        use saCorrections_d, only: saEdwardsSource_d, saCompressibilitySource_d
+        use saCorrections_d, only: saEdwardsSource_d, saCompressibilitySource_d, saCatrisViscous_d, &
+                                   saDensityCorrectionSource_d
         use turbutils_d, only: turbAdvection_d, computeEddyViscosity_d
         use fluxes_d, only: inviscidDissFluxScalarApprox_d, inviscidDissFluxMatrixApprox_d, &
                             inviscidUpwindFlux_d, inviscidDissFluxScalar_d, inviscidDissFluxMatrix_d, &
@@ -545,9 +554,17 @@ contains
                             call saSource_d
                         end if
                         if (useCompressibilitySA) call saCompressibilitySource_d
+                        if (densityCorrSA /= saDensityNone .and. &
+                            densityCorrSA /= saDensityCatrisAupoixCons) then
+                            call saDensityCorrectionSource_d
+                        end if
                         call turbAdvection_d(1_intType, 1_intType, itu1 - 1, qq)
                 !!call unsteadyTurbTerm_d(1_intType, 1_intType, itu1-1, qq)
-                        call saViscous_d
+                        if (densityCorrSA == saDensityCatrisAupoix .or. densityCorrSA == saDensityCatrisAupoixCons) then
+                            call saCatrisViscous_d
+                        else
+                            call saViscous_d
+                        end if
                         call saResScale_d
                     end select
                 end if
@@ -645,7 +662,7 @@ contains
         use blockPointers, only: nDom, il, jl, kl, wd, xd, dw, dwd
         use inputPhysics, only: pointRefd, alphad, betad, equations, machCoefd, &
                                 machd, machGridd, rgasdimd, equationMode, turbModel, wallDistanceNeeded, &
-                                useCompressibilitySA
+                                useCompressibilitySA, densityCorrSA
         use inputDiscretization, only: lowSpeedPreconditioner, lumpedDiss, spaceDiscr, useAPproxWallDistance
         use inputTimeSpectral, only: nTimeIntervalsSpectral
         use inputAdjoint, only: frozenTurbulence
@@ -665,7 +682,8 @@ contains
         use initializeflow_b, only: referenceState_b
         use wallDistance_b, only: updateWallDistancesQuickly_b
         use sa_b, only: saSource_b, saViscous_b, saResScale_b, qq
-        use saCorrections_b, only: saEdwardsSource_b, saCompressibilitySource_b
+        use saCorrections_b, only: saEdwardsSource_b, saCompressibilitySource_b, saCatrisViscous_b, &
+                                   saDensityCorrectionSource_b
         use turbutils_b, only: turbAdvection_b, computeEddyViscosity_b
         use residuals_b, only: sourceTerms_block_b, initRes_block_b
         use fluxes_b, only: inviscidUpwindFlux_b, inviscidDissFluxScalar_b, &
@@ -794,12 +812,20 @@ contains
                     select case (turbModel)
                     case (spalartAllmaras, spalartAllmarasEdwards)
                         call saResScale_b
-                        call saViscous_b
+                        if (densityCorrSA == saDensityCatrisAupoix .or. densityCorrSA == saDensityCatrisAupoixCons) then
+                            call saCatrisViscous_b
+                        else
+                            call saViscous_b
+                        end if
                         !call unsteadyTurbTerm_b(1_intType, 1_intType, itu1-1, qq)
                         call turbAdvection_b(1_intType, 1_intType, itu1 - 1, qq)
                         ! turbAdvection_b zeros the faceid. This should be ok since
                         ! it presumably is the last call in master using faceid and
                         ! therefore should be the first call in master_b to use faceid
+                        if (densityCorrSA /= saDensityNone .and. &
+                            densityCorrSA /= saDensityCatrisAupoixCons) then
+                            call saDensityCorrectionSource_b
+                        end if
                         if (useCompressibilitySA) call saCompressibilitySource_b
                         if (turbModel == spalartAllmarasEdwards) then
                             call saEdwardsSource_b
@@ -1058,7 +1084,7 @@ contains
         use iteration, only: currentLevel
         use flowVarRefState, only: nw, viscous
         use blockPointers, only: nDom, il, jl, kl, wd, dwd, iblank
-        use inputPhysics, only: equationMode, turbModel, equations, useCompressibilitySA
+        use inputPhysics, only: equationMode, turbModel, equations, useCompressibilitySA, densityCorrSA
         use inputDiscretization, only: lowSpeedPreconditioner, spaceDiscr
         use inputTimeSpectral, only: nTimeIntervalsSpectral
         use utils, only: setPointers_d
@@ -1073,7 +1099,8 @@ contains
 
         use sa_fast_b, only: saresscale_fast_b, saviscous_fast_b, &
                              sasource_fast_b, qq
-        use saCorrections_fast_b, only: saEdwardsSource_fast_b, saCompressibilitySource_fast_b
+        use saCorrections_fast_b, only: saEdwardsSource_fast_b, saCompressibilitySource_fast_b, &
+                                        saCatrisViscous_fast_b, saDensityCorrectionSource_fast_b
         use turbutils_fast_b, only: turbAdvection_fast_b
         use fluxes_fast_b, only: inviscidUpwindFlux_fast_b, inviscidDissFluxScalar_fast_b, &
                                  inviscidDissFluxMatrix_fast_b, viscousFlux_fast_b, inviscidCentralFlux_fast_b
@@ -1154,9 +1181,17 @@ contains
                     select case (turbModel)
                     case (spalartAllmaras, spalartAllmarasEdwards)
                         call saResScale_fast_b
-                        call saViscous_fast_b
+                        if (densityCorrSA == saDensityCatrisAupoix .or. densityCorrSA == saDensityCatrisAupoixCons) then
+                            call saCatrisViscous_fast_b
+                        else
+                            call saViscous_fast_b
+                        end if
                         !call unsteadyTurbTerm_b(1_intType, 1_intType, itu1-1, qq)
                         call turbAdvection_fast_b(1_intType, 1_intType, itu1 - 1, qq)
+                        if (densityCorrSA /= saDensityNone .and. &
+                            densityCorrSA /= saDensityCatrisAupoixCons) then
+                            call saDensityCorrectionSource_fast_b
+                        end if
                         if (useCompressibilitySA) call saCompressibilitySource_fast_b
                         if (turbModel == spalartAllmarasEdwards) then
                             call saEdwardsSource_fast_b
@@ -1317,12 +1352,13 @@ contains
         use inputAdjoint, only: viscPC
         use blockPointers, only: nDom, wd, xd, dw, dwd
         use flowVarRefState, only: viscous
-        use inputPhysics, only: equations, turbModel, useCompressibilitySA
+        use inputPhysics, only: equations, turbModel, useCompressibilitySA, densityCorrSA
         use inputDiscretization, only: lowSpeedPreconditioner, lumpedDiss, spaceDiscr
         use inputTimeSpectral, only: nTimeIntervalsSpectral
         use utils, only: setPointers_d, EChk
         use sa_d, only: saSource_d, saViscous_d, saResScale_d, qq
-        use saCorrections_d, only: saEdwardsSource_d, saCompressibilitySource_d
+        use saCorrections_d, only: saEdwardsSource_d, saCompressibilitySource_d, saCatrisViscous_d, &
+                                   saDensityCorrectionSource_d
         use turbutils_d, only: turbAdvection_d, computeEddyViscosity_d
         use fluxes_d, only: inviscidDissFluxScalarApprox_d, inviscidDissFluxMatrixApprox_d, &
                             inviscidUpwindFlux_d, inviscidDissFluxScalar_d, inviscidDissFluxMatrix_d, &
@@ -1377,9 +1413,17 @@ contains
                     call saSource_d
                 end if
                 if (useCompressibilitySA) call saCompressibilitySource_d
+                if (densityCorrSA /= saDensityNone .and. &
+                    densityCorrSA /= saDensityCatrisAupoixCons) then
+                    call saDensityCorrectionSource_d
+                end if
                 call turbAdvection_d(1_intType, 1_intType, itu1 - 1, qq)
           !!call unsteadyTurbTerm_d(1_intType, 1_intType, itu1-1, qq)
-                call saViscous_d
+                if (densityCorrSA == saDensityCatrisAupoix .or. densityCorrSA == saDensityCatrisAupoixCons) then
+                    call saCatrisViscous_d
+                else
+                    call saViscous_d
+                end if
                 call saResScale_d
             end select
         end if

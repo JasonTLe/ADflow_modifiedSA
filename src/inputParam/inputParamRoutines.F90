@@ -2988,6 +2988,14 @@ contains
             call mpi_barrier(ADflow_comm_world, ierr)
         end if
 
+        if (equations == RANSEquations .and. densityCorrSA /= saDensityNone .and. &
+            turbModel /= spalartAllmaras .and. turbModel /= spalartAllmarasEdwards) then
+            if (myID == 0) &
+                call terminate("checkInputParam", &
+                               "densityCorrectionSA requires the SA or SA-Edwards turbulence model")
+            call mpi_barrier(ADflow_comm_world, ierr)
+        end if
+
         ! Create a unit vector for the free stream velocity. It is checked
         ! if the vector specified is a valid one. If not processor 0 prints
         ! an error message. Only for external flows.

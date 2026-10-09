@@ -1,13 +1,16 @@
 """
-Tests for the SA-Edwards turbulence model and the SA compressibility
-correction (useCompressibilitySA), see src/turbulence/saCorrections.F90.
+Tests for the SA-Edwards turbulence model, the SA compressibility
+correction (useCompressibilitySA) and the density corrections of the
+diffusion term (densityCorrectionSA), see src/turbulence/saCorrections.F90.
 
 These tests do not use reference files. Instead they check that
 - the blockette (NK/ANK) and the regular residual routines agree,
 - the forward mode AD agrees with finite differences,
 - the forward, reverse and reverse-fast AD routines are consistent
   (dot-product tests),
-- the new terms actually change the turbulence residual (and only it).
+- the new terms actually change the turbulence residual (and only it),
+- the density corrections reduce to the standard SA model for constant
+  density.
 """
 
 # built-ins
@@ -38,6 +41,15 @@ test_params = [
     {"name": "SA_Edwards", "options": {"turbulenceModel": "SA-Edwards"}},
     {"name": "SA_comp", "options": {"turbulenceModel": "SA", "useCompressibilitySA": True}},
     {"name": "SA_Edwards_comp", "options": {"turbulenceModel": "SA-Edwards", "useCompressibilitySA": True}},
+    {"name": "SA_Catris", "options": {"turbulenceModel": "SA", "densityCorrectionSA": "Catris-Aupoix"}},
+    {"name": "SA_CatrisCons", "options": {"turbulenceModel": "SA", "densityCorrectionSA": "Catris-Aupoix-cons"}},
+    {"name": "SA_Catris1999", "options": {"turbulenceModel": "SA", "densityCorrectionSA": "Catris-1999"}},
+    {"name": "SA_Seror", "options": {"turbulenceModel": "SA", "densityCorrectionSA": "Seror"}},
+    {"name": "SA_conservative", "options": {"turbulenceModel": "SA", "densityCorrectionSA": "conservative"}},
+    {
+        "name": "SA_Edwards_Catris_comp",
+        "options": {"turbulenceModel": "SA-Edwards", "densityCorrectionSA": "Catris-Aupoix", "useCompressibilitySA": True},
+    },
 ]
 
 
@@ -109,6 +121,42 @@ class TestSACorrections(unittest.TestCase):
         # The destruction term is subtracted from the source and the
         # residual is -vol*source, so the change is non-negative.
         self.assertGreaterEqual(np.min(d1[:, 5]), -1e-10 * np.max(np.abs(d1[:, 5])))
+
+    def test_density_correction_changes_turb_residual(self):
+        # The density correction must change the turbulence residual and
+        # only the turbulence residual.
+        corr = self.CFDSolver.getOption("densityCorrectionSA")
+        if corr == "none":
+            self.skipTest("density correction not used")
+        res1 = self.CFDSolver.getResidual(self.ap).reshape(-1, self.nw)
+        self.CFDSolver.setOption("densityCorrectionSA", "none")
+        res0 = self.CFDSolver.getResidual(self.ap).reshape(-1, self.nw)
+        self.CFDSolver.setOption("densityCorrectionSA", corr)
+        res1b = self.CFDSolver.getResidual(self.ap).reshape(-1, self.nw)
+        noise = _norm(self.comm, res1b - res1)
+        d = res1 - res0
+        self.assertLessEqual(_norm(self.comm, d[:, :5]), 10 * noise + 1e-14)
+        self.assertGreater(_norm(self.comm, d[:, 5]) / _norm(self.comm, res0[:, 5]), 1e-8)
+
+    def test_constant_density(self):
+        # For constant density the density-corrected diffusion terms reduce
+        # to the standard SA diffusion term (the Catris-Aupoix model with
+        # the original non-conservative left hand side differs by
+        # nuTilde div(u) and the Seror term by grad(mu).grad(nuTilde)).
+        corr = self.CFDSolver.getOption("densityCorrectionSA")
+        if corr not in ["Catris-Aupoix-cons", "Catris-1999", "conservative"]:
+            self.skipTest("not applicable")
+        w = self.CFDSolver.getStates().reshape(-1, self.nw).copy()
+        rhoInf = self.CFDSolver.adflow.flowvarrefstate.winf[0]
+        w[:, 0] = rhoInf
+        self.CFDSolver.setStates(w.flatten())
+        res1 = self.CFDSolver.getResidual(self.ap).reshape(-1, self.nw)[:, 5]
+        self.CFDSolver.setOption("densityCorrectionSA", "none")
+        res0 = self.CFDSolver.getResidual(self.ap).reshape(-1, self.nw)[:, 5]
+        self.CFDSolver.setOption("densityCorrectionSA", corr)
+        err = _norm(self.comm, res1 - res0) / _norm(self.comm, res0)
+        print("constant density residual difference", err)
+        self.assertLess(err, 1e-10)
 
     def _fdErr(self, resDot, h, comp, **kwargs):
         resDotFD = self.CFDSolver.computeJacobianVectorProductFwd(residualDeriv=True, mode="FD", h=h, **kwargs)

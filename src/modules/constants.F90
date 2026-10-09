@@ -139,6 +139,16 @@ module constants
         vorticity = 2, &
         katoLaunder = 3
 
+    ! Density (compressibility) corrections of the SA diffusion term,
+    ! see turbulence/saCorrections.F90.
+    integer(kind=intType), parameter :: &
+        saDensityNone = 0, &
+        saDensityCatrisAupoix = 1, &
+        saDensityCatris1999 = 2, &
+        saDensitySeror = 3, &
+        saDensityConservative = 4, &
+        saDensityCatrisAupoixCons = 5
+
     integer(kind=intType), parameter :: &
         firstOrder = 1, &
         secondOrder = 2, &

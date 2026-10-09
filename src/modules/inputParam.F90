@@ -535,6 +535,9 @@ module inputPhysics
     ! useft2SA:            Determines if we will use the ft2 term (SA model only)
     ! useCompressibilitySA: Determines if we will use the compressibility correction
     !                      of Spalart (AIAA 2000-2306), SA and SA-Edwards models only
+    ! densityCorrSA:       Density correction of the SA diffusion term (saDensityNone,
+    !                      saDensityCatrisAupoix, saDensityCatrisAupoixCons, saDensityCatris1999,
+    !                      saDensitySeror or saDensityConservative), SA and SA-Edwards models only
     ! wallFunctions:       Whether or not to use wall functions.
     ! wallDistanceNeeded:  Whether or not the wall distance is needed
     !                      for the turbulence model in a RANS problem.
@@ -586,7 +589,7 @@ module inputPhysics
     !                      Spalart-Allmaras turbulence model constants
 
     integer(kind=intType) :: equations, equationMode, flowType
-    integer(kind=intType) :: turbModel, cpModel, turbProd
+    integer(kind=intType) :: turbModel, cpModel, turbProd, densityCorrSA
     integer(kind=intType) :: rvfN
     logical :: rvfB
     logical :: useQCR, useRotationSA, useft2SA, useCompressibilitySA

@@ -181,6 +181,12 @@ saCorrections%saEdwardsSource(w, rlv, vol, si, sj, sk, d2wall) > \
 saCorrections%saCompressibilitySource(w, p, vol, si, sj, sk, scratch) > \
                                      (w, p, vol, si, sj, sk, scratch) \
 \
+saCorrections%saCatrisViscous(w, vol, si, sj, sk, rlv, scratch) > \
+                             (w, vol, si, sj, sk, rlv, scratch) \
+\
+saCorrections%saDensityCorrectionSource(w, rlv, vol, si, sj, sk, scratch) > \
+                                       (w, rlv, vol, si, sj, sk, scratch) \
+\
 turbutils%turbAdvection(w, vol, si, sj, sk, scratch, sfacei, sfacej, sfacek) > \
                        (w, vol, si, sj, sk, scratch, sfacei, sfacej, sfacek) \
 \
@@ -308,6 +314,12 @@ saCorrections%saEdwardsSource(w, rlv) > \
 \
 saCorrections%saCompressibilitySource(w, p, scratch) > \
                                      (w, p, scratch) \
+\
+saCorrections%saCatrisViscous(w, rlv, scratch) > \
+                             (w, rlv, scratch) \
+\
+saCorrections%saDensityCorrectionSource(w, rlv, scratch) > \
+                                       (w, rlv, scratch) \
 \
 sa%saViscous(w, rlv, scratch) > \
             (w, rlv, scratch) \

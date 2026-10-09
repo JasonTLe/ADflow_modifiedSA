@@ -67,7 +67,7 @@ contains
                     select case (turbModel)
 
                     case (spalartAllmaras)
-                        if (useCompressibilitySA) then
+                        if (useCompressibilitySA .or. densityCorrSA /= saDensityNone) then
                             call saCorr_block(.false.)
                         else
                             call sa_block(.false.)
@@ -147,7 +147,7 @@ contains
                 select case (turbModel)
 
                 case (spalartAllmaras)
-                    if (useCompressibilitySA) then
+                    if (useCompressibilitySA .or. densityCorrSA /= saDensityNone) then
                         call saCorr_block(.True.)
                     else
                         call sa_block(.True.)

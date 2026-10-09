@@ -246,6 +246,31 @@ useCompressibilitySA:
     The term -C5 nuTilde^2/a^2 (du_i/dx_j)(du_i/dx_j) is added to the right hand side of the SA equation, where a is the speed of sound and C5 is given by ``SAc5``.
     Note that this correction targets compressible mixing layers; Xue et al. (AIAA J. 62(1), 2024) found that it degrades hypersonic boundary layer predictions.
 
+densityCorrectionSA:
+  desc: >
+    Density (compressibility) correction of the diffusion term of the ``SA`` or ``SA-Edwards`` turbulence models,
+    for boundary layers with large density variations (cold walls, high Mach number).
+    All forms reduce to the standard model for constant density.
+  none: >
+    No correction. ADflow solves the SA equation in the non-conservative form for nuTilde with the local kinematic viscosity,
+    (1/sigma) [d/dx_j ((nu + nuTilde) dnuTilde/dx_j) + cb2 (dnuTilde/dx_j)^2]; multiplied by rho this is the conservative
+    form of Allmaras, Johnson and Spalart (ICCFD7-1902, 2012) including their cross term -(1/sigma) (nu + nuTilde) (drho/dx_j)(dnuTilde/dx_j).
+  conservative: >
+    The term (1/sigma) (nu + nuTilde) (drho/dx_j)(dnuTilde/dx_j) / rho is added, which makes the diffusion term identical to
+    the conservative form used e.g. by the NASA Turbulence Modeling Resource and SU2, (1/sigma) [d/dx_j (rho (nu + nuTilde) dnuTilde/dx_j) + cb2 rho (dnuTilde/dx_j)^2] / rho.
+  Catris-1999: >
+    Catris (1999): the conservative form plus (cb2/sigma) nuTilde (drho/dx_j)(dnuTilde/dx_j) / rho.
+  Seror: >
+    Seror et al. (J. Aircraft 42(1), 2005): the Catris-1999 form plus (cb2/sigma) (dmu/dx_j)(dnuTilde/dx_j) / rho.
+  Catris-Aupoix: >
+    Catris and Aupoix (Aerosp. Sci. Technol. 4(1), 2000; SA-noft2-Catris on the NASA Turbulence Modeling Resource, or SA-Catris with ``useft2SA``).
+    The diffusion term is replaced by (1/sigma) [d/dx_j (mu dnuTilde/dx_j) + d/dx_j (sqrt(rho) nuTilde d(sqrt(rho) nuTilde)/dx_j) + cb2 (d(sqrt(rho) nuTilde)/dx_j)^2] / rho,
+    and, since the original model has D(rho nuTilde)/Dt on the left hand side, the term nuTilde du_j/dx_j is added.
+    This is the correction recommended for hypersonic boundary layers by Xue et al. (AIAA J. 62(1), 2024).
+  Catris-Aupoix-cons: >
+    The Catris-Aupoix diffusion term with the conservative left hand side d(rho nuTilde)/dt + d(rho u_j nuTilde)/dx_j
+    (SA-noft2-CatrisCons on the NASA Turbulence Modeling Resource; Waligura et al., AIAA 2022-0587), i.e. without the nuTilde du_j/dx_j term.
+
 eddyVisInfRatio:
   desc: >
     Free stream value of eddy viscosity.
