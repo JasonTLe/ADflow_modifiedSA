@@ -52,10 +52,10 @@ All documents are in `results/` (`summary.md`, `grid_study.md`,
 
 * `plate_vs_experiment.png` - boundary-layer profiles (u, T, M) at x = -11 cm and theta, Cf, q_w vs the Kussoy & Horstman survey, all models
 * `plate_ADflow_vs_SU2.png` - wall Cf and q_w along the plate, ADflow vs SU2, three grids
-* `plate_profiles_ADflow_vs_SU2.png` - boundary-layer profiles at x = -11 cm
+* `plate_profiles_ADflow_vs_SU2.png` - boundary-layer profiles at x = -11 cm, ADflow vs SU2 (superseded by the SU2 overlays in `by_model/plate_SA-Edwards.png`; kept because `su2/profiles.py` also prints the near-wall numbers quoted in Sec. 1.2)
 * `fin_vs_experiment.png` - Kussoy & Horstman sharp fin
 * `flare_vs_experiment.png` - Wideman et al. cylinder / flare
-* `by_model/<case>_<model>.png` - one figure per modification (plate, fin, flare): the modification (red, dashed) vs SA (green) vs experiment (black circles); on the plate SA-Edwards figure the converged SU2 solutions are overlaid dashed (SU2 SA purple, SU2 SA-Edwards blue); `plate_summary_bars.png` - theta, Cf, q_w of all models as ratios to the experiment, with SU2's SA and SA-Edwards values as hatched bars; `VnV_by_model_all.pdf` - all of them plus the two ADflow-vs-SU2 figures in one file (made by `plot_by_model.py`; pages 17-18 added after the SU2 rerun)
+* `by_model/<case>_<model>.png` - one figure per modification (plate, fin, flare): the modification (red, dashed) vs SA (green) vs experiment (black circles); on the plate SA-Edwards figure the converged SU2 solutions are overlaid dashed (SU2 SA purple, SU2 SA-Edwards blue); `plate_summary_bars.png` - theta, Cf, q_w of all models as ratios to the experiment, with SU2's SA and SA-Edwards values as hatched bars; `VnV_by_model_all.pdf` - all of them plus the along-the-plate ADflow-vs-SU2 figure in one file (17 pages)
 
 ## 1. Verification
 
