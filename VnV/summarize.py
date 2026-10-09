@@ -66,7 +66,7 @@ out.append(
     f"{qpeak:.2f} | {max(e['plate_cf_X15.5']['Cf']) * 1e3:.2f} | "
     f"{eband('fin_p_X17.72', 'Y_cm', 'P_over_Pinf', 6, 10):.2f} | {eband('fin_q_X16.13', 'Y_cm', 'Q_over_Qinf', 6, 10):.2f} |"
 )
-p = json.load(open(os.path.join(HERE, "data", "experiments.json")))["kussoy_fin15"]["paper_SA_curves_approx"]  # read from Edwards & Chandra Figs. 2-6
+p = json.load(open(os.path.join(HERE, "data", "edwards_chandra_curves.json")))["paper_SA_curves_approx"]  # the paper's (Edwards-modified) SA curves, read from its Figs. 2-6
 out.append(f"| Edwards & Chandra, their modified SA (digitised from Figs. 2-6, +-0.1-0.2) | {p['plate_p_peak']} | {p['plate_p_plateau']} | {p['plate_q_peak']} | {p['plate_cf_peak'] * 1e3:.1f} | {p['fin_p_plateau']} | {p['fin_q_plateau']} |\n")
 
 # --- Cylinder / flare -------------------------------------------------------

@@ -52,7 +52,6 @@ All documents are in `results/` (`summary.md`, `grid_study.md`,
 
 * `plate_vs_experiment.png` - boundary-layer profiles (u, T, M) at x = -11 cm and theta, Cf, q_w vs the Kussoy & Horstman survey, all models
 * `plate_ADflow_vs_SU2.png` - wall Cf and q_w along the plate, ADflow vs SU2, three grids
-* `plate_profiles_ADflow_vs_SU2.png` - boundary-layer profiles at x = -11 cm, ADflow vs SU2 (superseded by the SU2 overlays in `by_model/plate_SA-Edwards.png`; kept because `su2/profiles.py` also prints the near-wall numbers quoted in Sec. 1.2)
 * `fin_vs_experiment.png` - Kussoy & Horstman sharp fin
 * `flare_vs_experiment.png` - Wideman et al. cylinder / flare
 * `by_model/<case>_<model>.png` - one figure per modification (plate, fin, flare): the modification (red, dashed) vs SA (green) vs experiment (black circles); on the plate SA-Edwards figure the converged SU2 solutions are overlaid dashed (SU2 SA purple, SU2 SA-Edwards blue); `plate_summary_bars.png` - theta, Cf, q_w of all models as ratios to the experiment, with SU2's SA and SA-Edwards values as hatched bars; `VnV_by_model_all.pdf` - all of them plus the along-the-plate ADflow-vs-SU2 figure in one file (17 pages)
@@ -239,10 +238,10 @@ list 1.7e7/m.
 | `run_flatplate.py`, `run_case.py`, `postprocess.py`, `dump_restart.py` | running and post-processing ADflow cases |
 | `summarize.py`, `grid_study.py`, `plot_results.py` | tables and plots in `results/` |
 | `plot_by_model.py` | per-modification comparison figures and the all-model bar chart (`results/figures/by_model/`, `plate_summary_bars.png`, `VnV_by_model_all.pdf`) |
-| `data/experiments_nasa.json` | tabulated NASA experimental data (`data/README.md`); `experiments.json`: superseded digitized data |
+| `data/experiments_nasa.json`, `data/edwards_chandra_curves.json` | tabulated NASA experimental data (`data/README.md`) and the paper's curve values read from its figures; the first-round hand-digitised `experiments.json` is in `archive/data_superseded/` |
 | `su2/` | SU2 case generator and runner, `compare.py`, `profiles.py`, `wallgrad.py` |
 | `grids/`, `logs/` | generated grids and run logs (not tracked) |
-| `archive/` | superseded runs, not tracked (`su2_v1_vanalbada/`: the SU2 runs with the van Albada limiter that stalled at rms[rho] 1e-4..1e-5, see Sec. 1.2) |
+| `archive/` | superseded material, not tracked: `su2_v1_vanalbada/` (SU2 runs with the van Albada limiter that stalled at rms[rho] 1e-4..1e-5, Sec. 1.2), `figures_superseded/` (the ADflow-vs-SU2 profile figure, now part of `by_model/plate_SA-Edwards.png`; `su2/profiles.py` still writes it there and prints the near-wall numbers of Sec. 1.2), `data_superseded/` (first-round hand-digitised experiments.json) |
 | `AUDIT_2026-10-08.md` | independent audit of this V&V (equations, tests, data, SU2 comparison, convergence) with the 2026-10-09 SU2-convergence addendum |
 
 Solution folders are not versions of the same result: each is one model on

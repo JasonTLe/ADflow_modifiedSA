@@ -36,7 +36,8 @@ for k, lab in enumerate((r"$u/U_\infty$", r"$T/T_\infty$", r"$\tilde\nu/\nu_\inf
     ax[k].set_xlabel("wall distance y [m]"); ax[k].set_ylabel(lab); ax[k].grid(alpha=.3); ax[k].set_xlim(1e-6, 0.1)
 ax[0].legend(fontsize=8.5, frameon=False, title="colour = model, line style = code", title_fontsize=8.5)
 fig.suptitle(f"Mach 8.2 flat plate, boundary-layer profiles at x = {xa:.3f} m (ADflow cell centres; SU2 nodes at x = {xb:.3f} m), {level} grid")
-fig.tight_layout(); fig.savefig(os.path.join(FIGURES, "plate_profiles_ADflow_vs_SU2" + ("" if level == "medium" else "_" + level) + ".png"), dpi=120)
+fig.tight_layout(); ARCH = os.path.join(FIGURES, "..", "..", "archive", "figures_superseded"); os.makedirs(ARCH, exist_ok=True)   # superseded by the SU2 overlays in results/figures/by_model/plate_SA-Edwards.png
+fig.savefig(os.path.join(ARCH, "plate_profiles_ADflow_vs_SU2" + ("" if level == "medium" else "_" + level) + ".png"), dpi=120)
 for yy in [1e-4, 1e-3, 5e-3, 1e-2, 2e-2]:
     print(f"y={yy:.0e}: u/U A={np.interp(yy,yA,uA):.4f} S={np.interp(yy,yS,uS):.4f} | T/Tinf A={np.interp(yy,yA,TA):.3f} S={np.interp(yy,yS,TS):.3f} | nut/nu A={np.interp(yy,yA,nutA):.1f} S={np.interp(yy,yS,nutS):.1f}")
 print("max nut/nu: ADflow %.1f SU2 %.1f" % (nutA.max(), nutS.max()))

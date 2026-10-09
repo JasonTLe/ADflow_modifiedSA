@@ -38,7 +38,7 @@ Tabulated data transcribed from the NASA reports in `../../research_docs/`
   was computed from the tabulated P/Pt with the measured Pinf/Pt = 0.0332 of
   the report. x = 0 is the innermost (phi = 0) cylinder/flare junction.
 
-## `experiments.json` (superseded)
+## `experiments.json (now in archive/data_superseded/)` (superseded)
 
 The data digitized by hand from the figures of Edwards & Chandra (AIAA
 94-2275) and Wideman et al. (AIAA 94-0314) that were used for the first round

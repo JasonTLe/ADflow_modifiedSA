@@ -1,0 +1,12 @@
+{
+ "_source": "Edwards & Chandra, AIAA 94-2275, Figs. 2-6, read by hand (+-0.1-0.2); the paper's Spalart-Allmaras curves are its Edwards-modified SA (Sec. 4.3). Extracted 2026-10-09 from the superseded data/experiments.json (now archive/data_superseded/).",
+ "paper_SA_curves_approx": {
+  "plate_p_peak": 6.9,
+  "plate_p_plateau": 2.35,
+  "plate_q_peak": 6.6,
+  "plate_cf_peak": 0.0052,
+  "fin_q_plateau": 7.7,
+  "fin_p_plateau": 10.7,
+  "_note": "Read from Edwards & Chandra Figs. 2-6; the SA curve is identified from the text (SA underpredicts peak Cf and gives the lowest peak plate heating). Their SA is the Edwards-modified form of Sec. 4.3."
+ }
+}
