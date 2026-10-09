@@ -7,6 +7,7 @@ Same data as plot_results.py (results/adflow/<case>/medium/<model>/, data/experi
 """
 import os
 import sys
+import json
 import numpy as np
 import matplotlib
 
@@ -36,6 +37,43 @@ EXPB = dict(marker="s", mfc="none", mec="0.45", color="0.45", mew=1.2, ls="none"
 UINF = 8.2 * np.sqrt(1.4)          # ADflow units (p_inf = rho_inf = 1)
 
 
+def _read_vtk(path, names):
+    """ASCII legacy VTK (SU2 PARAVIEW_ASCII): points + the requested point fields."""
+    L = open(path).read().split("\n"); i = 0; n = None; out = {}
+    def grab(k, count):
+        v = []
+        while len(v) < count:
+            v += L[k].split(); k += 1
+        return np.array(v[:count], float), k
+    while i < len(L):
+        t = L[i].split()
+        if not t:
+            i += 1; continue
+        if t[0] == "POINTS":
+            n = int(t[1]); pts, i = grab(i + 1, 3 * n); out["xy"] = pts.reshape(n, 3)[:, :2]; continue
+        if t[0] == "SCALARS" and t[1] in names:
+            v, i = grab(i + 2, n); out[t[1]] = v; continue
+        if t[0] == "VECTORS" and t[1] in names:
+            v, i = grab(i + 1, 3 * n); out[t[1]] = v.reshape(n, 3); continue
+        i += 1
+    return out
+
+
+def su2_profile(m, xs=-0.11334, level="medium"):
+    """SU2 profile at the node column nearest the ADflow station, normalised like plate_profile."""
+    import glob
+    d = run_dir("su2", "plate", level, m)
+    vtk = sorted(glob.glob(os.path.join(d, "flow_*.vtk")), key=os.path.getmtime)
+    if not vtk:
+        return None
+    D = _read_vtk(vtk[-1], ("Velocity", "Temperature", "Mach", "Nu_Tilde"))
+    x, y = D["xy"][:, 0], D["xy"][:, 1]
+    cols = np.unique(np.round(x, 9)); xc = cols[np.argmin(np.abs(cols - xs))]
+    sel = np.abs(x - xc) < 1e-9; o = np.argsort(y[sel])
+    u = D["Velocity"][sel, 0][o]; T = D["Temperature"][sel][o]; M = D["Mach"][sel][o]; nt = D["Nu_Tilde"][sel][o]
+    return dict(x=xc, y=y[sel][o] * 100, u=u / u[-1], T=T / T[-1], M=M, nut=nt / (nt[-1] / 1.342))
+
+
 def plate_profile(m):
     d = np.load(os.path.join(run_dir("adflow", "plate", "medium", m), "cells.npz"))
     x, w = d["x"], d["w"]
@@ -54,6 +92,7 @@ def plot_plate():
     e = EXP["kussoy_fin15"]; prof = e["upstream_BL_profile"]; c = e["conditions"]
     bl = load("plate", "bl.json")
     P = {m: plate_profile(m) for m in bl}
+    SU2P = {mm: su2_profile(mm) for mm in ("SA", "SA-Edwards")}          # converged SU2 runs, medium grid
     exp_int = {"theta_cm": c["inflow_theta_cm"], "Cf": c["inflow_Cf"], "qw_W_cm2": c["inflow_qw_W_cm2"]}
     for m in bl:
         if m == "SA":
@@ -69,6 +108,13 @@ def plot_plate():
                 for mm, s, lab in (("SA", BASE, "SA (baseline)"), (m, st, LABEL.get(m, m))):
                     yy = np.maximum(P[mm]["y"], 1e-6) if logy else P[mm]["y"]
                     ax.plot(P[mm][key], yy, label=lab, **s)
+                if m == "SA-Edwards":                                   # the only modification SU2 was run with
+                    for mm, col in (("SA", BASE["color"]), ("SA-Edwards", MOD["color"])):
+                        q = SU2P.get(mm)
+                        if q is None:
+                            continue
+                        yy = np.maximum(q["y"], 1e-6) if logy else q["y"]
+                        ax.plot(q[key], yy, ls=":", color=col, lw=1.8, label=f"{mm}, SU2 (x = {q['x']:.3f} m)")
                 if ek:
                     ye = np.array(prof["Y_cm"]); ve = np.array(prof[ek]); keep = ye > 0 if logy else ye >= 0
                     ax.plot(ve[keep], ye[keep], label="Kussoy & Horstman survey", zorder=4, **EXPA)
@@ -112,20 +158,28 @@ def plot_bars():
     e = EXP["kussoy_fin15"]; c = e["conditions"]; bl = load("plate", "bl.json"); names = list(bl)
     quant = [("theta_cm", c["inflow_theta_cm"], r"$\theta$ (matched for SA)"), ("Cf", c["inflow_Cf"], r"$C_f$"),
              ("qw_W_cm2", c["inflow_qw_W_cm2"], r"$q_w$")]
-    fig, ax = plt.subplots(figsize=(13, 5.2))
-    xpos = np.arange(len(quant)); width = 0.85 / len(names)
-    for i, m in enumerate(names):
-        vals = [bl[m]["x=-0.11"][k] / ref for k, ref, _ in quant]
-        xs = xpos + (i - (len(names) - 1) / 2) * width
-        ax.bar(xs, vals, width, color=BASE["color"] if m == "SA" else STYLE[m]["color"], edgecolor="k", lw=0.5,
-               label=LABEL.get(m, m))
+    series = []                                                        # (label, colour, hatch, values)
+    sj = os.path.join(os.path.dirname(FIGURES), "su2_comparison.json")
+    su2 = json.load(open(sj)) if os.path.exists(sj) else {}
+    for m in names:
+        col = BASE["color"] if m == "SA" else STYLE[m]["color"]
+        series.append((LABEL.get(m, m), col, None, [bl[m]["x=-0.11"][k] / ref for k, ref, _ in quant]))
+        e = su2.get(f"{m}/medium", {}).get("x=-0.11", {})
+        if "SU2_Cf" in e:                                               # SU2 ran this model: hatched bar next to it
+            series.append((f"{m} (SU2)", col, "//", [e["SU2_theta_cm"] / quant[0][1], e["SU2_Cf"] / quant[1][1], e["SU2_qw_W_cm2"] / quant[2][1]]))
+    fig, ax = plt.subplots(figsize=(14, 5.4))
+    xpos = np.arange(len(quant)); width = 0.86 / len(series)
+    for i, (lab, col, hatch, vals) in enumerate(series):
+        xs = xpos + (i - (len(series) - 1) / 2) * width
+        ax.bar(xs, vals, width, color=col if hatch is None else "white", edgecolor=col if hatch else "k", hatch=hatch,
+               lw=1.0 if hatch else 0.5, label=lab)
         for xx, v in zip(xs, vals):
             ax.text(xx, v + 0.01, f"{v:.2f}", ha="center", va="bottom", fontsize=6.5, rotation=90)
     ax.axhline(1.0, color="k", lw=1)
     ax.set_xticks(xpos); ax.set_xticklabels([q[2] for q in quant], fontsize=11)
     ax.set_ylabel("ADflow / experiment  (1 = experiment)"); ax.set_ylim(0, 1.35); ax.grid(alpha=0.3, axis="y")
-    ax.legend(fontsize=8.5, ncol=3, frameon=False, loc="upper left")
-    ax.set_title(f"Mach 8.2 flat plate at x = -11 cm, all models (medium grid). Experiment: theta {c['inflow_theta_cm']} cm, "
+    ax.legend(fontsize=8, ncol=4, frameon=False, loc="upper left")
+    ax.set_title(f"Mach 8.2 flat plate at x = -11 cm, all models (ADflow, medium grid; hatched = SU2, same grid). Experiment: theta {c['inflow_theta_cm']} cm, "
                  f"Cf {c['inflow_Cf']:.2e}, q_w {c['inflow_qw_W_cm2']} W/cm$^2$", fontsize=10)
     fig.tight_layout(); fig.savefig(os.path.join(FIGURES, "plate_summary_bars.png"), dpi=130); plt.close(fig)
     print("wrote", os.path.join(FIGURES, "plate_summary_bars.png"))
