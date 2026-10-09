@@ -34,6 +34,8 @@ BASE = dict(color="#2ca02c", ls="-", lw=2.0)                             # basel
 MOD = dict(color="#d62728", ls="--", lw=2.4)                             # the modification: red, dashed
 EXPA = dict(marker="o", mfc="none", mec="k", color="k", mew=1.4, ls="none", ms=5.5)   # main data set
 EXPB = dict(marker="s", mfc="none", mec="0.45", color="0.45", mew=1.2, ls="none", ms=4.5)   # second data set: grey
+SU2STYLE = {"SA": dict(color="#6a0dad", ls="--", lw=1.8),           # SU2 SA: dark purple dashed
+            "SA-Edwards": dict(color="#1f77b4", ls="--", lw=1.8)}   # SU2 SA-Edwards: blue dashed
 UINF = 8.2 * np.sqrt(1.4)          # ADflow units (p_inf = rho_inf = 1)
 
 
@@ -109,12 +111,12 @@ def plot_plate():
                     yy = np.maximum(P[mm]["y"], 1e-6) if logy else P[mm]["y"]
                     ax.plot(P[mm][key], yy, label=lab, **s)
                 if m == "SA-Edwards":                                   # the only modification SU2 was run with
-                    for mm, col in (("SA", BASE["color"]), ("SA-Edwards", MOD["color"])):
+                    for mm in ("SA", "SA-Edwards"):
                         q = SU2P.get(mm)
                         if q is None:
                             continue
                         yy = np.maximum(q["y"], 1e-6) if logy else q["y"]
-                        ax.plot(q[key], yy, ls=":", color=col, lw=1.8, label=f"{mm}, SU2 (x = {q['x']:.3f} m)")
+                        ax.plot(q[key], yy, label=f"{mm}, SU2 (x = {q['x']:.3f} m)", **SU2STYLE[mm])
                 if ek:
                     ye = np.array(prof["Y_cm"]); ve = np.array(prof[ek]); keep = ye > 0 if logy else ye >= 0
                     ax.plot(ve[keep], ye[keep], label="Kussoy & Horstman survey", zorder=4, **EXPA)
@@ -166,7 +168,7 @@ def plot_bars():
         series.append((LABEL.get(m, m), col, None, [bl[m]["x=-0.11"][k] / ref for k, ref, _ in quant]))
         e = su2.get(f"{m}/medium", {}).get("x=-0.11", {})
         if "SU2_Cf" in e:                                               # SU2 ran this model: hatched bar next to it
-            series.append((f"{m} (SU2)", col, "//", [e["SU2_theta_cm"] / quant[0][1], e["SU2_Cf"] / quant[1][1], e["SU2_qw_W_cm2"] / quant[2][1]]))
+            series.append((f"{m} (SU2)", SU2STYLE[m]["color"], "//", [e["SU2_theta_cm"] / quant[0][1], e["SU2_Cf"] / quant[1][1], e["SU2_qw_W_cm2"] / quant[2][1]]))
     fig, ax = plt.subplots(figsize=(14, 5.4))
     xpos = np.arange(len(quant)); width = 0.86 / len(series)
     for i, (lab, col, hatch, vals) in enumerate(series):
