@@ -5356,6 +5356,34 @@ class ADFLOW(AeroSolver):
         else:
             return numpy.zeros(self.getAdjointStateSize(), self.dtype)
 
+    # ---------------------------------------------------------------------
+    # LST operator export (ported from ADflowContribute; src/lst/eigen.F90)
+    # ---------------------------------------------------------------------
+    def buildLSTJacobian(self, useAD=False, usePC=False, useTranspose=False, useObjective=False, frozenTurbulence=None):
+        """Assemble dR/dw into the in-memory PETSc matrix ``drdw``."""
+        if frozenTurbulence is None:
+            frozenTurbulence = self.getOption("frozenTurbulence")
+        self.adflow.eigenapi.buildlstjacobian(useAD, usePC, useTranspose, useObjective, frozenTurbulence)
+
+    def writeLSTJacobian(self, fileName, negate=False):
+        """Write the assembled ``drdw`` matrix to a PETSc binary file (optionally as -dR/dw)."""
+        self.adflow.eigenapi.writelstjacobian(fileName, negate)
+
+    def destroyLSTJacobian(self):
+        self.adflow.eigenapi.destroylstjacobian()
+
+    def buildLSTMassMatrix(self, frozenTurbulence=None, scale=1.0):
+        """Assemble dU/dw into the in-memory PETSc matrix."""
+        if frozenTurbulence is None:
+            frozenTurbulence = self.getOption("frozenTurbulence")
+        self.adflow.eigenapi.buildlstmassmatrix(frozenTurbulence, scale)
+
+    def writeLSTMassMatrix(self, fileName):
+        self.adflow.eigenapi.writelstmassmatrix(fileName)
+
+    def destroyLSTMassMatrix(self):
+        self.adflow.eigenapi.destroylstmassmatrix()
+
     def getResidual(self, aeroProblem, res=None, releaseAdjointMemory=True):
         """Return the residual on this processor. Used in aerostructural
         analysis

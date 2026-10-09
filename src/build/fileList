@@ -92,6 +92,8 @@ fortranFiles=	ADT/adtUtils.F90\
 		preprocessing/preprocessingModules.F90\
 		preprocessing/preprocessingAPI.F90\
 		\
+		lst/eigen.F90\
+		\
 		solver/BCRoutines.F90\
 		solver/solverUtils.F90\
 		solver/fluxes.F90\

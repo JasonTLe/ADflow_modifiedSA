@@ -15,6 +15,7 @@ dirs:=	adjoint\
 	partitioning\
 	preprocessing\
 	slidingComm\
+	lst\
 	solver\
 	turbulence\
 	utils\

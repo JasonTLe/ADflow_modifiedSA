@@ -728,6 +728,46 @@ python module libadflow
 
        end module solvers
 
+      module eigenapi ! in lst/eigen.F90
+          subroutine initializelstjacobian(usepc,frozenturbulence)
+            logical, intent(in) :: usepc
+            logical, intent(in) :: frozenturbulence
+          end subroutine initializelstjacobian
+
+          subroutine buildlstjacobian(usead,usepc,usetranspose,useobjective,frozenturbulence)
+            logical, intent(in) :: usead
+            logical, intent(in) :: usepc
+            logical, intent(in) :: usetranspose
+            logical, intent(in) :: useobjective
+            logical, intent(in) :: frozenturbulence
+          end subroutine buildlstjacobian
+
+          subroutine writelstjacobian(filename,negate)
+            character*(*) intent(in) :: filename
+            logical, intent(in) :: negate
+          end subroutine writelstjacobian
+
+          subroutine destroylstjacobian
+          end subroutine destroylstjacobian
+
+          subroutine initializelstmassmatrix(frozenturbulence)
+            logical, intent(in) :: frozenturbulence
+          end subroutine initializelstmassmatrix
+
+          subroutine buildlstmassmatrix(frozenturbulence,scale)
+            logical, intent(in) :: frozenturbulence
+            real(kind=realtype), intent(in) :: scale
+          end subroutine buildlstmassmatrix
+
+          subroutine writelstmassmatrix(filename)
+            character*(*) intent(in) :: filename
+          end subroutine writelstmassmatrix
+
+          subroutine destroylstmassmatrix
+          end subroutine destroylstmassmatrix
+      end module eigenapi
+
+
       module aleutils
 
          subroutine shiftlevelale
