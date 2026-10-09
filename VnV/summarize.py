@@ -8,8 +8,8 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 from common import RESULTS, run_dir  # noqa: E402
-EXP = json.load(open(os.path.join(HERE, "data", "experiments.json")))
-MODELS = ["SA", "SA-Edwards", "SA-comp"]
+EXP = json.load(open(os.path.join(HERE, "data", "experiments_nasa.json")))
+MODELS = ["SA", "SA-Edwards", "SA-comp", "SA-Catris", "SA-Catris-cons", "SA-Catris1999", "SA-Seror", "SA-cons", "SA-Edwards-Catris"]
 out = []
 
 
@@ -58,13 +58,16 @@ def eband(key, xk, yk, lo, hi):
     return float(np.mean(v[(x >= lo) & (x <= hi)]))
 
 
+# Peak values over the main and the "additional" data sets of the KUSSOY3 file
+ppeak = max(max(e["plate_p_X18.2"]["P_over_Pinf"]), max(e["plate_p_X18.2_additional"]["P_over_Pinf"]))
+qpeak = max(max(e["plate_q_X16.45"]["Q_over_Qinf"]), max(e["plate_q_X16.45_additional"]["Q_over_Qinf"]))
 out.append(
-    f"| **Experiment** | {max(e['plate_p_X18.2']['P_over_Pinf']):.2f} | {eband('plate_p_X18.2', 'Z_cm', 'P_over_Pinf', 4, 6):.2f} | "
-    f"{max(e['plate_q_X16.45']['Q_over_Qinf']):.2f} | {max(e['plate_cf_X15.5']['Cf']) * 1e3:.2f} | "
+    f"| **Experiment** | {ppeak:.2f} | {eband('plate_p_X18.2', 'Z_cm', 'P_over_Pinf', 4, 6):.2f} | "
+    f"{qpeak:.2f} | {max(e['plate_cf_X15.5']['Cf']) * 1e3:.2f} | "
     f"{eband('fin_p_X17.72', 'Y_cm', 'P_over_Pinf', 6, 10):.2f} | {eband('fin_q_X16.13', 'Y_cm', 'Q_over_Qinf', 6, 10):.2f} |"
 )
-p = e["paper_SA_curves_approx"]
-out.append(f"| Edwards & Chandra SA (approx.) | {p['plate_p_peak']} | {p['plate_p_plateau']} | {p['plate_q_peak']} | {p['plate_cf_peak'] * 1e3:.1f} | {p['fin_p_plateau']} | {p['fin_q_plateau']} |\n")
+p = json.load(open(os.path.join(HERE, "data", "experiments.json")))["kussoy_fin15"]["paper_SA_curves_approx"]  # read from Edwards & Chandra Figs. 2-6
+out.append(f"| Edwards & Chandra, their modified SA (digitised from Figs. 2-6, +-0.1-0.2) | {p['plate_p_peak']} | {p['plate_p_plateau']} | {p['plate_q_peak']} | {p['plate_cf_peak'] * 1e3:.1f} | {p['fin_p_plateau']} | {p['fin_q_plateau']} |\n")
 
 # --- Cylinder / flare -------------------------------------------------------
 w = EXP["wideman_flare"]

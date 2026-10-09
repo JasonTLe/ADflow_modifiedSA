@@ -2,7 +2,7 @@
 # Regenerate all V&V results (grids, ADflow runs, SU2 runs, post-processing).
 # This is the recipe used for the reported results; it takes many hours on a
 # 16-core machine. Run sections individually as needed:
-#   ./run_all.sh grids | plate | fin | flare | su2 | post
+#   ./run_all.sh grids | plate | fin | flare | plate_dens | fin_dens | flare_dens | su2 | post
 set -e
 cd "$(dirname "$0")"
 export MPLBACKEND=Agg
@@ -48,6 +48,28 @@ flare() {  # Mach 2.89 cylinder / flare: BL initial condition + ANK
   for m in SA SA-Edwards; do python postprocess.py flare coarse $m > /dev/null; done
 }
 
+# Density corrections of the diffusion term (densityCorrectionSA), added
+# after the first round of results: all variants on the 2-D plate, the two
+# Catris-Aupoix forms on the 3-D cases.
+DENS="SA-Catris SA-Catris-cons SA-Catris1999 SA-Seror SA-cons SA-Edwards-Catris"
+plate_dens() {  # 6 runs x 4 processes in parallel
+  for m in $DENS; do ./run.sh 4 run_flatplate.py $m flat_plate_M82_LE164.cgns > logs/fp164_$m.log 2>&1 & done; wait
+}
+
+fin_dens() {  # restart from the converged SA solution
+  for m in SA-Catris SA-Catris-cons; do
+    ADFLOW_EXTRA="$CPL" ./run.sh 16 run_case.py fin $m results/adflow/fin/medium/SA/fin_000_vol.cgns > logs/fin_$m.log 2>&1
+    python postprocess.py fin medium $m > /dev/null
+  done
+}
+
+flare_dens() {
+  for m in SA-Catris SA-Catris-cons; do
+    ./run.sh ${NP_FLARE:-12} run_case.py flare $m > logs/flare_$m.log 2>&1
+    python postprocess.py flare medium $m > /dev/null
+  done
+}
+
 su2() {  # SU2 v8.5.0 flat plate on the same grids (SU2 built in ~/packages/SU2)
   (cd su2 && for t in coarse medium fine; do for m in SA SA-Edwards; do python make_su2_case.py "$t" $m; done; done && ./run_su2_all.sh)
 }
@@ -61,5 +83,5 @@ post() {
 
 mkdir -p grids logs results/figures
 steps=("$@")
-[ ${#steps[@]} -eq 0 ] && steps=(grids plate fin flare su2 post)
+[ ${#steps[@]} -eq 0 ] && steps=(grids plate fin flare plate_dens fin_dens flare_dens su2 post)
 for s in "${steps[@]}"; do $s; done

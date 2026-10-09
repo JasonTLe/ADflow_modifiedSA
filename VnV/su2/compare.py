@@ -131,7 +131,7 @@ for name in LEVELS:
         A, S = adflow(name, model), su2(name, model)
         key = f"{model}/{name}"
         out[key] = {}
-        ls = "-" if model == "SA" else "--"
+        ls = "-"                                   # ADflow solid in both rows; SU2 dotted (below)
         col = colors[name]
         row = 0 if model == "SA" else 1
         if A is not None:
@@ -164,20 +164,28 @@ for name in LEVELS:
                 if "ADflow_theta_cm" in e:
                     e["dtheta_pct"] = 100 * (e["SU2_theta_cm"] / e["ADflow_theta_cm"] - 1)
             out[key][f"x={xs:+.2f}"] = e
+from matplotlib.lines import Line2D
+TITLE = {"SA": "SA (baseline)", "SA-Edwards": "SA-Edwards (Edwards & Chandra 1996)"}
 for row, model in enumerate(MODELS):
-    axs[row, 0].set_ylabel(f"{model}: $C_f$ x 1e3")
-    axs[row, 1].set_ylabel(f"{model}: $q_w$ [W/cm$^2$]")
-    for c in range(2):
+    axs[row, 0].set_ylabel(r"$C_f \times 10^3$")
+    axs[row, 1].set_ylabel(r"$q_w$ [W/cm$^2$]")
+    for c, q in enumerate(("skin friction", "wall heat flux")):
+        axs[row, c].set_title(f"{TITLE.get(model, model)}: {q}", loc="left", fontsize=10)
         axs[row, c].set_xlim(-1.64, 0.25)
-        axs[row, c].set_xlabel("x [m] (plate leading edge at -1.64 m)")
+        axs[row, c].set_xlabel("x [m]   (plate leading edge at x = -1.64 m; fin apex at x = 0)")
         axs[row, c].grid(alpha=0.3)
     axs[row, 0].set_ylim(0.5, 2.0)
     axs[row, 1].set_ylim(0.5, 2.0)
-    axs[row, 0].plot([-0.11], [1.0], "ko", mfc="none", label="Kussoy exp. (x = -11 cm)")
-    axs[row, 1].plot([-0.11], [1.04], "ko", mfc="none", label="Kussoy exp. (x = -11 cm)")
-axs[0, 0].legend(fontsize=7, ncol=2)
-fig.suptitle("Mach 8.2 cold-wall flat plate: ADflow (solid/dashed) vs SU2 (dotted), same grids")
-fig.tight_layout()
+    axs[row, 0].plot([-0.11], [1.0], "ko", mfc="none", ms=7)
+    axs[row, 1].plot([-0.11], [1.04], "ko", mfc="none", ms=7)
+handles = ([Line2D([], [], color=colors[n], lw=2, label=f"{n} grid") for n in LEVELS]
+           + [Line2D([], [], color="0.3", ls="-", lw=1.4, label="ADflow (solid)"),
+              Line2D([], [], color="0.3", ls=":", lw=2, label="SU2 (dotted)"),
+              Line2D([], [], color="k", marker="o", mfc="none", ls="none", ms=7,
+                     label="Kussoy & Horstman, x = -11 cm (Edwards & Chandra's values: $C_f$ 1.0e-3, $q_w$ 1.04 W/cm$^2$)")])
+fig.legend(handles=handles, loc="lower center", ncol=3, fontsize=8.5, frameon=False, bbox_to_anchor=(0.5, 0.0))
+fig.suptitle("Mach 8.2 cold-wall flat plate: ADflow vs SU2 on the same three grids (colour = grid, line style = code)")
+fig.tight_layout(rect=(0, 0.07, 1, 1))
 os.makedirs(FIGURES, exist_ok=True)
 fig.savefig(os.path.join(FIGURES, "plate_ADflow_vs_SU2.png"), dpi=130)
 json.dump(out, open(os.path.join(RESULTS, "su2_comparison.json"), "w"), indent=1)

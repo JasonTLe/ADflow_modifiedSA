@@ -59,3 +59,11 @@ tests/output_files/*.plt
 
 # for mac users
 *.DS_Store
+
+# background reading only (local copies, not data sources of VnV/):
+research_docs/AGARD-AR-319_Vol2_Ch1_Knight_Degrez_SBLI_survey.pdf
+research_docs/Marvin_1992_CFD_validation_roadmap_hypersonic.pdf
+research_docs/Marvin_2013_NASA-TM-2013-216604.pdf
+research_docs/Kussoy_Horstman_1992_NASA-TM-103909_crossing_shock.pdf
+research_docs/Settles_Dodson_1991_NASA-CR-177577_hypersonic_SBLI_database.pdf
+research_docs/Settles_1990_NASA-CR-186397_swept_shock_CFD_validation.pdf

@@ -9,7 +9,7 @@ Writes results/su2/plate/<LEVEL>/<MODEL>/{plate.su2, stage1.cfg, stage2.cfg}.
 The physical modelling is matched to ADflow's defaults: SA without ft2,
 Sutherland (mu_ref 1.716e-5, T_ref 273.15 K, S 110.55 K), Pr 0.72,
 Pr_t 0.9, gamma 1.4, R 287.05, freestream nuTilde = 1.342 nu (ADflow's
-eddyVisInfRatio 0.009), isothermal wall 300 K, Roe + MUSCL/van Albada for
+eddyVisInfRatio 0.009), isothermal wall 300 K, Roe + MUSCL/Venkatakrishnan for
 the flow, first-order upwind for the turbulence."""
 
 import os
@@ -109,18 +109,18 @@ NUM_METHOD_GRAD= GREEN_GAUSS
 CONV_NUM_METHOD_FLOW= ROE
 ENTROPY_FIX_COEFF= 0.0
 MUSCL_FLOW= {muscl}
-SLOPE_LIMITER_FLOW= VAN_ALBADA_EDGE
+SLOPE_LIMITER_FLOW= {limiter}
 CONV_NUM_METHOD_TURB= SCALAR_UPWIND
 MUSCL_TURB= NO
 TIME_DISCRE_FLOW= EULER_IMPLICIT
 TIME_DISCRE_TURB= EULER_IMPLICIT
 CFL_NUMBER= {cfl}
-CFL_ADAPT= NO
+CFL_ADAPT= {cfl_adapt}
 LINEAR_SOLVER= FGMRES
 LINEAR_SOLVER_PREC= ILU
 LINEAR_SOLVER_ERROR= 1E-4
 LINEAR_SOLVER_ITER= 20
-
+{extra}
 ITER= {niter}
 CONV_FIELD= RMS_DENSITY
 CONV_RESIDUAL_MINVAL= -11
@@ -138,11 +138,19 @@ HISTORY_OUTPUT= ( ITER, RMS_RES )
 VOLUME_OUTPUT= ( COORDINATES, SOLUTION, PRIMITIVE, RESIDUAL )
 OUTPUT_WRT_FREQ= {wrt}
 """
-# Stage 1: first order, stage 2: second order (MUSCL + van Albada) restarted
-# from stage 1. The corner node at the plate leading edge keeps SU2's global
-# residual from dropping (see README); convergence is judged by the residual
-# away from the leading edge and by the stationarity of the wall quantities.
-open(os.path.join(out, "stage1.cfg"), "w").write(CFG.format(model=model, sa_opts=sa_opts, cfl=5.0, muscl="NO", restart="NO", niter=8000, wrt=8000))
-open(os.path.join(out, "stage2.cfg"), "w").write(CFG.format(model=model, sa_opts=sa_opts, cfl=2.0, muscl="YES", restart="YES", niter=12000, wrt=2000) + "WRT_VOLUME_OVERWRITE= NO\n")
+# Stage 1: first order (CFL 5, initial guess only), stage 2: second order
+# (MUSCL + Venkatakrishnan) restarted from stage 1.  Recipe revised 2026-10-09:
+# with the van Albada edge limiter the second-order residual stalled at -4.1
+# (coarse) / -5.2 (medium) / -5.0 (fine) because of a persistent residual in the
+# few nodes at the plate leading edge (slip -> no-slip, 77 K -> 300 K at Mach
+# 8.2); freezing the limiter or tightening the linear solver did not help, the
+# Venkatakrishnan limiter (first order at extrema) with the limiter frozen
+# after 500 iterations and an adaptive CFL (2 -> 50) converges to -11.  The
+# earlier results are kept in results/su2_v1_vanalbada/.
+STAGE2_EXTRA = "CFL_ADAPT_PARAM= ( 0.5, 1.2, 2.0, 50.0 )\nVENKAT_LIMITER_COEFF= 0.05\nLIMITER_ITER= 500\n"
+open(os.path.join(out, "stage1.cfg"), "w").write(CFG.format(model=model, sa_opts=sa_opts, cfl=5.0, muscl="NO", restart="NO", niter=8000, wrt=8000,
+                                                            limiter="VENKATAKRISHNAN", cfl_adapt="NO", extra=""))
+open(os.path.join(out, "stage2.cfg"), "w").write(CFG.format(model=model, sa_opts=sa_opts, cfl=2.0, muscl="YES", restart="YES", niter=20000, wrt=2000,
+                                                            limiter="VENKATAKRISHNAN", cfl_adapt="YES", extra=STAGE2_EXTRA) + "WRT_VOLUME_OVERWRITE= NO\n")
 
 print(out, ni, nj)

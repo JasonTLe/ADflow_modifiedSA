@@ -9,7 +9,7 @@ import json
 import numpy as np
 from mpi4py import MPI
 from adflow import ADFLOW
-from common import HERE, grid_level, run_dir, kussoy_ap, solver_options, gather_cells, winf, boundary_layer, init_boundary_layer, solve
+from common import HERE, grid_level, run_dir, kussoy_ap, solver_options, gather_cells, winf, boundary_layer, init_boundary_layer, solve, dump_cells
 
 model = sys.argv[1] if len(sys.argv) > 1 else "SA"
 gridName = sys.argv[2] if len(sys.argv) > 2 else "flat_plate_M82_LE164.cgns"
@@ -32,6 +32,7 @@ if os.environ.get("INIT_BL", "1") == "1":
     CFDSolver.setAeroProblem(ap)
     init_boundary_layer(CFDSolver, ap, walls, Twall=300.0)
 solve(CFDSolver, ap, default_rk=1500)
+dump_cells(CFDSolver, os.path.join(out, "cells.npz"))  # profiles (plot_plate.py, su2/profiles.py)
 
 x, w = gather_cells(CFDSolver)
 wi = winf(CFDSolver)

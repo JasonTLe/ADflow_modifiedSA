@@ -34,6 +34,13 @@ MODELS = {
     "SA": {"turbulenceModel": "SA", "useft2SA": False},
     "SA-Edwards": {"turbulenceModel": "SA-Edwards"},
     "SA-comp": {"turbulenceModel": "SA", "useft2SA": False, "useCompressibilitySA": True},
+    # Density corrections of the diffusion term (densityCorrectionSA)
+    "SA-Catris": {"turbulenceModel": "SA", "useft2SA": False, "densityCorrectionSA": "Catris-Aupoix"},
+    "SA-Catris-cons": {"turbulenceModel": "SA", "useft2SA": False, "densityCorrectionSA": "Catris-Aupoix-cons"},
+    "SA-Catris1999": {"turbulenceModel": "SA", "useft2SA": False, "densityCorrectionSA": "Catris-1999"},
+    "SA-Seror": {"turbulenceModel": "SA", "useft2SA": False, "densityCorrectionSA": "Seror"},
+    "SA-cons": {"turbulenceModel": "SA", "useft2SA": False, "densityCorrectionSA": "conservative"},
+    "SA-Edwards-Catris": {"turbulenceModel": "SA-Edwards", "densityCorrectionSA": "Catris-Aupoix"},
 }
 
 
